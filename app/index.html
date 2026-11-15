@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#05030f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NEONVERSE">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; img-src 'self' blob: data:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-+mly31C+QQSAeXrtrKLIXFjPzAin+3Nu2O5/lqJcZv8='; worker-src 'self' blob:; connect-src 'self' blob: data:">
+  <title>NEONVERSE AI 2.0 — Futuristic Music Video Studio</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/brand/favicon-64.png">
+  <link rel="icon" type="image/svg+xml" href="assets/brand/icon-simple.svg">
+  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/neonverse.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+  <div id="boot"><img src="assets/brand/logo-vertical.svg" alt="NEONVERSE AI 2.0"><div class="boot-bar"><i></i></div><p id="boot-msg">Iniciando motor…</p></div>
+
+  <div id="app" class="hidden">
+    <nav id="nav" aria-label="Menú principal">
+      <div class="nav-logo" title="NEONVERSE AI 2.0"><img src="assets/brand/icon-simple.svg" alt=""></div>
+      <div id="nav-items"></div>
+    </nav>
+
+    <main id="center">
+      <header id="topbar">
+        <img class="top-logo" src="assets/brand/logo-horizontal.svg" alt="NEONVERSE AI 2.0">
+        <input id="project-name" class="glass-input" spellcheck="false" aria-label="Nombre del proyecto">
+        <div class="top-group">
+          <select id="aspect-select" class="glass-select" title="Formato del vídeo">
+            <option value="9:16">9:16 TikTok/CapCut</option><option value="16:9">16:9 YouTube</option><option value="1:1">1:1 Cuadrado</option><option value="custom">Personalizado</option>
+          </select>
+          <select id="quality-select" class="glass-select" title="Modo de rendimiento de la vista previa">
+            <option value="performance">Rendimiento</option><option value="balanced">Equilibrado</option><option value="quality">Calidad</option>
+          </select>
+        </div>
+        <div class="top-group">
+          <button id="btn-undo" class="icon-btn" title="Deshacer (Ctrl+Z)">↶</button>
+          <button id="btn-redo" class="icon-btn" title="Rehacer (Ctrl+Y)">↷</button>
+          <button id="btn-save" class="icon-btn" title="Guardar proyecto (Ctrl+S)">💾</button>
+          <button id="btn-export-top" class="neon-btn small">Exportar MP4</button>
+        </div>
+      </header>
+
+      <section id="stage">
+        <div id="stage-frame"><canvas id="view"></canvas>
+          <div id="hud"><span id="hud-mode"></span><span id="hud-section"></span><span id="hud-bpm"></span><span id="hud-fps"></span></div>
+          <div id="drop-hint">Suelta aquí música o fotografías</div>
+        </div>
+      </section>
+
+      <section id="transport">
+        <button id="btn-stop" class="icon-btn" title="Detener">■</button>
+        <button id="btn-play" class="play-btn" title="Reproducir / pausa (Espacio)">▶</button>
+        <span id="time-now" class="mono">0:00.00</span><span class="mono dim">/</span><span id="time-total" class="mono dim">0:30</span>
+        <div id="scrub"><canvas id="scrub-canvas"></canvas></div>
+        <button id="btn-loop" class="icon-btn" title="Repetir fragmento (A-B)">⟲</button>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.9" title="Volumen" aria-label="Volumen">
+        <button id="btn-view-mode" class="chip" title="Qué muestra la vista previa">Línea de tiempo</button>
+      </section>
+
+      <section id="timeline-dock">
+        <div id="tl-toolbar">
+          <div class="tl-tools">
+            <button data-tl="split" title="Cortar en el cursor (S)">✂ Cortar</button>
+            <button data-tl="duplicate" title="Duplicar (D)">⧉ Duplicar</button>
+            <button data-tl="delete" title="Eliminar (Supr)">🗑 Eliminar</button>
+            <button data-tl="marker" title="Marcador en el cursor (M)">◆ Marcador</button>
+            <label class="tl-snap"><input type="checkbox" id="tl-snap" checked> Imán al ritmo</label>
+          </div>
+          <div class="tl-tools">
+            <button data-tl="zoom-out" title="Alejar">−</button><button data-tl="zoom-fit" title="Ajustar">⇔</button><button data-tl="zoom-in" title="Acercar">+</button>
+            <button data-tl="toggle" id="tl-toggle" title="Mostrar/ocultar">▾</button>
+          </div>
+        </div>
+        <div id="tl-wrap"><canvas id="tl-canvas"></canvas></div>
+      </section>
+    </main>
+
+    <aside id="panel">
+      <header id="panel-head"><h2 id="panel-title"></h2><p id="panel-sub"></p></header>
+      <div id="panel-body"></div>
+    </aside>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="modal" class="hidden"><div class="modal-card"><h3 id="modal-title"></h3><div id="modal-body"></div><div id="modal-actions"></div></div></div>
+  <input type="file" id="file-audio" accept="audio/*,.mp3,.wav,.aac,.m4a,.flac,.ogg" hidden>
+  <input type="file" id="file-photos" accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple hidden>
+  <input type="file" id="file-project" accept=".neonverse,.json,application/json" hidden>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "NEONVERSE AI 2.0 — Futuristic Music Video Studio",
+  "short_name": "NEONVERSE",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05030f",
+  "theme_color": "#05030f",
+  "icons": [
+    { "src": "assets/brand/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/brand/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "assets/brand/favicon-64.png", "sizes": "64x64", "type": "image/png" }
+  ]
+}

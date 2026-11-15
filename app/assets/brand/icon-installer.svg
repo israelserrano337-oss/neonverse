@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#00f0ff"/><stop offset="0.5" stop-color="#8a2bff"/><stop offset="1" stop-color="#ff2bd6"/>
+  </linearGradient>
+  <linearGradient id="ringGrad2" x1="1" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ff2bd6"/><stop offset="0.5" stop-color="#8a2bff"/><stop offset="1" stop-color="#00f0ff"/>
+  </linearGradient>
+  <radialGradient id="tile" cx="0.5" cy="0.44" r="0.75">
+    <stop offset="0" stop-color="#1a0b3d"/><stop offset="0.55" stop-color="#0a0520"/><stop offset="1" stop-color="#03020a"/>
+  </radialGradient>
+  <radialGradient id="core" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0" stop-color="#ffffff"/><stop offset="0.22" stop-color="#d9fdff"/>
+    <stop offset="0.45" stop-color="#00f0ff"/><stop offset="0.75" stop-color="#8a2bff" stop-opacity="0.55"/>
+    <stop offset="1" stop-color="#ff2bd6" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0" stop-color="#8a2bff" stop-opacity="0.55"/><stop offset="0.6" stop-color="#ff2bd6" stop-opacity="0.12"/>
+    <stop offset="1" stop-color="#ff2bd6" stop-opacity="0"/>
+  </radialGradient>
+  <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="9" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>
+</defs><rect x="32" y="32" width="960" height="960" rx="216" fill="url(#tile)"/>
+<rect x="34" y="34" width="956" height="956" rx="214" fill="none" stroke="url(#ringGrad)" stroke-width="4" opacity="0.65"/>
+<circle cx="512" cy="468" r="330" fill="url(#halo)"/>
+<g filter="url(#glow)">
+<polygon points="512.00,140.00 858.41,340.00 858.41,740.00 512.00,940.00 165.59,740.00 165.59,340.00" fill="none" stroke="url(#ringGrad)" stroke-width="26.00" stroke-linejoin="round" opacity="1.00"/>
+<polygon points="552.72,214.83 800.25,404.76 759.53,714.09 471.28,833.49 223.75,643.56 264.47,334.23" fill="none" stroke="url(#ringGrad2)" stroke-width="21.31" stroke-linejoin="round" opacity="0.94"/>
+<polygon points="574.99,276.74 747.07,448.82 684.08,683.89 449.01,746.87 276.93,574.79 339.92,339.72" fill="none" stroke="url(#ringGrad)" stroke-width="17.47" stroke-linejoin="round" opacity="0.89"/>
+<polygon points="584.64,326.80 700.20,477.39 627.56,652.76 439.36,677.54 323.80,526.94 396.44,351.57" fill="none" stroke="url(#ringGrad2)" stroke-width="14.32" stroke-linejoin="round" opacity="0.83"/>
+<polygon points="586.03,366.43 660.06,494.65 586.03,622.87 437.97,622.87 363.94,494.65 437.97,366.43" fill="none" stroke="url(#ringGrad)" stroke-width="11.74" stroke-linejoin="round" opacity="0.78"/>
+<polygon points="582.30,397.17 626.50,503.86 556.19,595.48 441.70,580.41 397.50,473.71 467.81,382.09" fill="none" stroke="url(#ringGrad2)" stroke-width="9.62" stroke-linejoin="round" opacity="0.72"/>
+<polygon points="575.70,420.52 599.01,507.53 535.31,571.22 448.30,547.91 424.99,460.90 488.69,397.20" fill="none" stroke="url(#ringGrad)" stroke-width="7.89" stroke-linejoin="round" opacity="0.66"/>
+<polygon points="567.74,437.87 576.91,507.54 521.17,550.31 456.26,523.42 447.09,453.76 502.83,410.99" fill="none" stroke="url(#ringGrad2)" stroke-width="6.47" stroke-linejoin="round" opacity="0.61"/>
+<polygon points="559.46,450.46 559.46,505.27 512.00,532.67 464.54,505.27 464.54,450.46 512.00,423.06" fill="none" stroke="url(#ringGrad)" stroke-width="5.30" stroke-linejoin="round" opacity="0.55"/>
+<line x1="579.6" y1="486.1" x2="656.9" y2="506.8" stroke="#00f0ff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="561.5" y1="517.5" x2="618.1" y2="574.1" stroke="#8a2bff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="530.1" y1="535.6" x2="550.8" y2="612.9" stroke="#ff2bd6" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="493.9" y1="535.6" x2="473.2" y2="612.9" stroke="#00f0ff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="462.5" y1="517.5" x2="405.9" y2="574.1" stroke="#8a2bff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="444.4" y1="486.1" x2="367.1" y2="506.8" stroke="#ff2bd6" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="444.4" y1="449.9" x2="367.1" y2="429.2" stroke="#00f0ff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="462.5" y1="418.5" x2="405.9" y2="361.9" stroke="#8a2bff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="493.9" y1="400.4" x2="473.2" y2="323.1" stroke="#ff2bd6" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="530.1" y1="400.4" x2="550.8" y2="323.1" stroke="#00f0ff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="561.5" y1="418.5" x2="618.1" y2="361.9" stroke="#8a2bff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="579.6" y1="449.9" x2="656.9" y2="429.2" stroke="#ff2bd6" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+</g>
+<circle cx="512" cy="468" r="120" fill="url(#core)" filter="url(#soft)"/>
+<circle cx="512" cy="468" r="62" fill="url(#core)"/>
+<circle cx="512" cy="468" r="20" fill="#ffffff"/>
+<g>
+  <circle cx="800" cy="800" r="150" fill="#05030f" stroke="url(#ringGrad)" stroke-width="14"/>
+  <path d="M800 715 V860 M742 808 L800 866 L858 808" fill="none" stroke="#00f0ff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <line x1="735" y1="895" x2="865" y2="895" stroke="#ff2bd6" stroke-width="18" stroke-linecap="round"/>
+</g></svg>

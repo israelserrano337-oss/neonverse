@@ -1,0 +1,80 @@
+{
+  "name": "neonverse-ai",
+  "productName": "NEONVERSE AI",
+  "version": "2.4.0",
+  "description": "NEONVERSE AI 2.0 — Futuristic Music Video Studio: túneles 3D, mallas eléctricas, fotografías animadas y Auto Director sincronizado con la música, con exportación MP4 real.",
+  "author": "NEONVERSE",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "postinstall": "node scripts/vendor.mjs",
+    "vendor": "node scripts/vendor.mjs",
+    "web": "node scripts/serve.mjs",
+    "build:web": "node scripts/build-web.mjs",
+    "start": "electron .",
+    "test": "node --test test/*.test.mjs",
+    "icons": "python3 scripts/build-icons.py",
+    "fetch-ffmpeg-win": "node scripts/fetch-ffmpeg-win.mjs",
+    "pack": "electron-builder --dir",
+    "dist": "node scripts/fetch-ffmpeg-win.mjs && electron-builder --win nsis portable --x64 --publish never",
+    "dist:dir": "node scripts/fetch-ffmpeg-win.mjs && electron-builder --win dir --x64 --publish never"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0"
+  },
+  "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
+    "mp4-muxer": "^5.2.2",
+    "resedit": "^3.1.0",
+    "three": "^0.187.0"
+  },
+  "build": {
+    "appId": "com.neonverse.studio",
+    "productName": "NEONVERSE AI",
+    "copyright": "NEONVERSE AI 2.0",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "app/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      { "from": "build/ffmpeg-win", "to": "ffmpeg", "filter": ["*.exe"] }
+    ],
+    "afterPack": "scripts/after-pack.cjs",
+    "npmRebuild": false,
+    "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "target": ["nsis", "portable"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "installerIcon": "build/installer.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NEONVERSE AI 2.0",
+      "runAfterFinish": true,
+      "artifactName": "NEONVERSE-AI-2.0-Instalador-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "NEONVERSE-AI-2.0-Portable-${version}.${ext}"
+    },
+    "linux": {
+      "icon": "build/icons",
+      "target": ["dir"]
+    }
+  }
+}

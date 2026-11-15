@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs><filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g filter="url(#glow)">
+<polygon points="512.00,120.00 875.73,330.00 875.73,750.00 512.00,960.00 148.27,750.00 148.27,330.00" fill="none" stroke="#ffffff" stroke-width="30.00" stroke-linejoin="round" opacity="1.00"/>
+<polygon points="553.12,209.69 803.02,401.45 761.91,713.76 470.88,834.31 220.98,642.55 262.09,330.24" fill="none" stroke="#ffffff" stroke-width="23.83" stroke-linejoin="round" opacity="0.93"/>
+<polygon points="573.15,280.30 740.20,447.35 679.05,675.55 450.85,736.70 283.80,569.65 344.95,341.45" fill="none" stroke="#ffffff" stroke-width="18.93" stroke-linejoin="round" opacity="0.85"/>
+<polygon points="579.81,334.68 687.67,475.25 619.86,638.95 444.19,662.07 336.33,521.50 404.14,357.80" fill="none" stroke="#ffffff" stroke-width="15.04" stroke-linejoin="round" opacity="0.78"/>
+<polygon points="578.45,375.69 644.89,490.78 578.45,605.87 445.55,605.87 379.11,490.78 445.55,375.69" fill="none" stroke="#ffffff" stroke-width="11.95" stroke-linejoin="round" opacity="0.70"/>
+<polygon points="572.67,406.01 610.82,498.10 550.14,577.17 451.33,564.16 413.18,472.08 473.86,393.00" fill="none" stroke="#ffffff" stroke-width="9.49" stroke-linejoin="round" opacity="0.62"/>
+<polygon points="564.86,427.96 584.20,500.16 531.35,553.02 459.14,533.67 439.80,461.47 492.65,408.61" fill="none" stroke="#ffffff" stroke-width="7.54" stroke-linejoin="round" opacity="0.55"/>
+<line x1="589.3" y1="488.7" x2="656.9" y2="506.8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="568.6" y1="524.6" x2="618.1" y2="574.1" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="532.7" y1="545.3" x2="550.8" y2="612.9" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="491.3" y1="545.3" x2="473.2" y2="612.9" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="455.4" y1="524.6" x2="405.9" y2="574.1" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="434.7" y1="488.7" x2="367.1" y2="506.8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="434.7" y1="447.3" x2="367.1" y2="429.2" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="455.4" y1="411.4" x2="405.9" y2="361.9" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="491.3" y1="390.7" x2="473.2" y2="323.1" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="532.7" y1="390.7" x2="550.8" y2="323.1" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="568.6" y1="411.4" x2="618.1" y2="361.9" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+<line x1="589.3" y1="447.3" x2="656.9" y2="429.2" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+</g>
+<circle cx="512" cy="468" r="58" fill="#ffffff"/>
+</svg>

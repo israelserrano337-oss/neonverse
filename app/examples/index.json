@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Neon Techno 128 BPM",
+    "desc": "Música y 4 imágenes incluidas · Future Rave",
+    "file": "demo-neon-techno.neonverse"
+  },
+  {
+    "name": "Synthwave sin música",
+    "desc": "Perfil synthwave · 30 s · carga tu música y regenera",
+    "file": "demo-synthwave.neonverse"
+  },
+  {
+    "name": "Psytrance fractal sin música",
+    "desc": "Perfil psytrance · 30 s · carga tu música y regenera",
+    "file": "demo-psytrance.neonverse"
+  }
+]

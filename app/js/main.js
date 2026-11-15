@@ -10,7 +10,7 @@ import { evaluate, studioComposition, addClip, removeClip, splitClip, duplicateC
 import { TimelineView } from './timeline/TimelineView.js';
 import { Exporter } from './export/Exporter.js';
 import { buildSlideshow } from './timeline/slideshow.js';
-import { setPhotoProvider } from './timeline/model.js';
+import { setPhotoProvider, has3D } from './timeline/model.js';
 import { buildEvents, clipsAt, stateAt, setModeAt, addNudge, modeAt } from './beatsync/BeatSync.js';
 import { generate, smartRandom } from './director/AutoDirector.js';
 import { TUNNELS } from './studios/tunnels.js';
@@ -33,7 +33,7 @@ const PREFS_KEY = 'neonverse-prefs';
 
 class App {
   constructor() {
-    this.prefs = Object.assign({ quality: null, previewScale: 1, fpsCap: 0, particleMul: 1, maxPhoto: 0, followPlayhead: true, autosave: true }, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'));
+    this.prefs = Object.assign({ startup: 'ask', quality: null, previewScale: 1, fpsCap: 0, particleMul: 1, maxPhoto: 0, followPlayhead: true, autosave: true }, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'));
     this.store = new Store(newProject());
     this.media = new MediaStore();
     this.player = new Player();
@@ -69,7 +69,7 @@ class App {
     this.bindUI();
     this.setupMobile();
     msg('Recuperando el último proyecto…');
-    await this.restoreAutosave();
+    await this.restoreAutosave({ ask: !new URLSearchParams(location.search).get('selftest') });
     this.store.on('change', (kind) => this.onChange(kind));
     this.store.on('select', () => { this.timeline.dirty = true; if (this.section === 'timeline') this.renderSection(); });
     this.store.on('history', () => this.updateHistoryButtons());
@@ -189,18 +189,17 @@ class App {
     this.player.tick();
     const t = this.player.time;
     const tr = this.store.project.timeline.tracks;
-    const idle = this.view.mode !== 'studio' && !this.bsActive() && !tr.tunnels.length && !tr.meshes.length && !tr.photos.length && !tr.particles.length && !tr.equalizers.length;
+    // Sin clips 3D en la línea de tiempo, evaluate() usa las capas de los estudios: la vista previa
+    // muestra exactamente lo que se exportará. Mientras está parado, el fondo se anima con el reloj del estudio.
+    const idle = this.view.mode !== 'studio' && !this.player.playing && !has3D(this.store.project) && !this.store.project.audio;
     const studio = this.view.mode === 'studio' || idle;
     const st = studio ? (this.player.playing ? t : (now - this.studioClock) / 1000) : t;
     const key = `${this.store.version}|${t.toFixed(4)}|${this.pw}x${this.ph}|${this.view.mode}`;
     if (!studio && key === this._lastKey && !this._forceRender) { this.uiTick(t, dt, false); return; }
     this._lastKey = key; this._forceRender = false;
     let comp;
-    if (idle) {
-      // Proyecto vacío: las capas del estudio sirven de fondo animado
-      if (!this.store.project.studio.tunnels.length) this.store.project.studio.tunnels.push({ id: 'idle', type: 'rings', params: { speed: 0.6, glow: 1 } });
-      comp = studioComposition(this.store.project.studio, ['tunnels'], st);
-    } else comp = studio ? this.studioComp(st) : evaluate(this.store.project, t);
+    if (idle) comp = evaluate(this.store.project, st);
+    else comp = studio ? this.studioComp(st) : evaluate(this.store.project, t);
     try {
       this.engine.render({ t: st, comp, project: this.store.project, audioFor: this.audioFor(st), quality: q, width: this.pw, height: this.ph, target: null });
     } catch (e) { console.error(e); if (!this._renderErr) { this._renderErr = true; toast('Error de render: ' + e.message, true, 6000); } }
@@ -374,11 +373,31 @@ class App {
     if (!this.prefs.autosave) return;
     try { await this.media.libPut('autosave', { project: deepClone({ ...this.store.project }), savedAt: Date.now() }); } catch (e) { console.warn('Autoguardado', e); }
   }
-  async restoreAutosave() {
+  /** Al abrir la app: continuar el último proyecto, empezar uno vacío o preguntar (Ajustes → «Al iniciar»). */
+  async restoreAutosave({ ask = true } = {}) {
     try {
       const rec = await this.media.libGet('autosave');
-      if (rec?.project) await this.openProject(rec.project, { silent: true });
+      if (!rec?.project) return;
+      const rp = rec.project;
+      const empty = !rp.audio && !rp.photos?.length && !Object.values(rp.timeline?.tracks || {}).some((c) => c.length);
+      if (empty) return; // nada que recuperar: no se pregunta
+      let choice = this.prefs.startup || 'ask';
+      if (choice === 'ask' && ask) {
+        const p = rec.project;
+        const what = el('div', {}, el('p', {}, `Último proyecto: «${p.name}»`), el('p', { class: 'hint' }, `${p.audio ? 'Canción: ' + p.audio.name : 'Sin canción'} · ${p.photos?.length || 0} foto(s) · guardado ${new Date(rec.savedAt).toLocaleString('es-ES')}`),
+          el('p', { class: 'hint' }, 'Puedes cambiar este comportamiento en Ajustes → «Al iniciar la app».'));
+        choice = await modal('¿Continuar donde lo dejaste?', what, [{ label: 'Empezar proyecto nuevo', value: 'new' }, { label: 'Continuar', value: 'continue', primary: true }]);
+      }
+      if (choice === 'new') { await this.media.libPut('autosave', null); return; }
+      if (choice === 'ask' && !ask) return;
+      await this.openProject(rec.project, { silent: true });
     } catch (e) { console.warn('No se pudo recuperar el autoguardado', e); }
+  }
+  /** Quita todas las fotos del proyecto (y sus clips); los túneles, mallas y ecualizadores siguen igual. */
+  removeAllPhotos() {
+    // Las texturas y archivos se conservan para que Ctrl+Z pueda devolverlas al instante.
+    this.store.commit('Quitar todas las fotos', (p) => { p.photos = []; p.timeline.tracks.photos = []; p.beatSync.enabled = false; p.beatSync.nudges = []; });
+    this.store.select({});
   }
   async openProject(project, { silent = false } = {}) {
     const p = normalizeProject(project);
@@ -686,7 +705,9 @@ async function selftest(app) {
     console.log('[selftest] proyecto', app.store.project.name, JSON.stringify(app.store.project.timeline.tracks.tunnels.slice(0, 2).map((c) => [c.type, c.start])));
     const caps = await app.exporter.capabilities();
     const [qPath, qa, qb, qw, qh, qbs] = q.split('|');
-    if (qbs) { app.bsSet({ enabled: true, transition: 'cut' }); app.bsMode(qbs); console.log('[selftest] beatsync', JSON.stringify(app.bsEvents().map((e) => +e.t.toFixed(3)))); }
+    if (qbs === 'studio') { // sin fotos ni clips 3D: el vídeo usa las capas de los estudios combinadas
+      app.store.commit('selftest', (pp) => { for (const k of ['tunnels', 'meshes', 'equalizers', 'particles', 'photos']) pp.timeline.tracks[k] = []; pp.photos = []; pp.studio.tunnels = [{ id: 'st', type: 'hexgrid', params: {} }]; pp.studio.meshes = [{ id: 'sm', type: 'lattice', params: {} }]; pp.studio.equalizers = [{ id: 'se', type: 'reactor', params: {} }]; });
+    } else if (qbs) { app.bsSet({ enabled: true, transition: 'cut' }); app.bsMode(qbs); console.log('[selftest] beatsync', JSON.stringify(app.bsEvents().map((e) => +e.t.toFixed(3)))); }
     const out = qPath.replace(/\\/g, '/');
     const folder = out.includes('/') ? out.slice(0, out.lastIndexOf('/')) : undefined;
     const name = out.slice(out.lastIndexOf('/') + 1).replace(/\.mp4$/i, '');

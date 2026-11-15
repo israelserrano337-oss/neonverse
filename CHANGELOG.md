@@ -1,5 +1,12 @@
 # Cambios
 
+## 2.6.0 — 15-11-2026
+- **Corregido: el vídeo no llevaba túneles ni mallas** cuando la línea de tiempo no tenía clips 3D (la vista previa sí los mostraba, la exportación solo las fotos). Ahora las capas de los estudios combinadas (túneles + mallas + ecualizadores + partículas; un túnel por defecto si no hay ninguna) son el fondo de todo el vídeo. Vista previa = exportación en Windows e iOS. Las fotos ya no son necesarias para exportar.
+- **Corregido: ya no se abre siempre el último proyecto y canción.** Al iniciar se pregunta «Continuar / Empezar proyecto nuevo»; en Ajustes → «Al iniciar la app»: Preguntar · Continuar el último · Empezar vacío.
+- Fotos: interruptor «Mostrar las fotos en el vídeo» y botón «Quitar todas las fotos» (con Ctrl+Z se recuperan).
+- Exportar: grupo «Contenido del vídeo» que indica qué saldrá en el vídeo, con accesos a cada estudio.
+- Verificado: exportación sin fotos en navegador (WebCodecs) y escritorio (FFmpeg) con túnel + malla + ecualizador; 37 pruebas unitarias; barrido de seguridad 112/112; humo sin errores.
+
 ## 2.5.0 — 15-11-2026
 - **Exportador: duración del vídeo 15 / 30 / 45 / 60 s** (o completo), empezando en el primer drop (un compás antes), en el principio o en el cursor; el tramo se encaja en el compás y se adelanta si no cabe. Fundido final del audio de 0,8 s (escritorio y navegador), nombre de archivo con la duración, botón «Previsualizar el tramo».
 - **Sincronía con la batería en todas las visuales:** nuevas señales del análisis ligadas a los golpes reales (pulso de bombo, pulso de batería y «empujón» acumulado). Túneles que avanzan a empujones y laten en cada bombo, láseres que se abren y estiran, ecualizadores (núcleo, barras, órbitas y ondas de choque en cada bombo real), mallas que se levantan y laten, partículas que se expanden, chispas en cada bombo, fotos con zoom de impacto y leve empuje de cámara. Antes reaccionaban a la rejilla de tempo con una campana que empezaba antes del golpe.

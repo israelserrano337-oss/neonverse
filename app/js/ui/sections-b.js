@@ -14,7 +14,7 @@ import { PALETTE_PRESETS, PALETTE_PARAMS, allPalettes } from '../studios/palette
 import { EXPORT_PRESETS, RESOLUTIONS, QUALITIES, DURATIONS, STARTS, outputSize, bitrateFor, exportRange } from '../export/Exporter.js';
 import { clipLabel } from '../timeline/TimelineView.js';
 import { isIOS, shareVideo } from '../export/mobile.js';
-import { removeClip, splitClip, duplicateClip } from '../timeline/model.js';
+import { removeClip, splitClip, duplicateClip, has3D, studioBackground } from '../timeline/model.js';
 
 const $f = (id) => document.getElementById(id);
 
@@ -212,6 +212,16 @@ export function renderExport(app, body) {
   const dur = r1 - r0;
   const bitrate = ex.bitrateMbps ? ex.bitrateMbps * 1e6 : bitrateFor(size.w, size.h, ex.fps, ex.quality);
   const estMB = ((bitrate + (ex.audioBitrate || 0) * 1000) * dur) / 8 / 1e6;
+  // Qué saldrá en el vídeo (lo mismo que se ve en la vista previa)
+  {
+    const t3 = has3D(p), bg = studioBackground(p);
+    const n = (k) => (t3 ? p.timeline.tracks[k] : bg[k]).length;
+    const parts = [['tunnels', 'túnel(es)'], ['meshes', 'malla(s)'], ['equalizers', 'ecualizador(es)'], ['particles', 'partículas']].filter(([k]) => n(k)).map(([k, l]) => `${n(k)} ${l}`);
+    body.append(group('Contenido del vídeo', true,
+      el('p', { class: 'hint' }, (t3 ? 'Línea de tiempo: ' : 'Capas de los estudios (combinadas, todo el vídeo): ') + (parts.join(' · ') || 'nada') + (p.photos.length ? (p.showPhotos === false ? ' · fotos ocultas' : ` · ${p.photos.length} foto(s)`) : ' · sin fotos')),
+      p.photos.length ? toggle({ label: 'Incluir las fotos', value: p.showPhotos !== false, onChange: (v) => { app.store.commit(v ? 'Mostrar fotos' : 'Ocultar fotos', (pp) => { pp.showPhotos = v; }); app.renderSection(); } }) : null,
+      !t3 ? btnRow(button('Editar túneles', () => app.go('tunnels')), button('Mallas', () => app.go('meshes')), button('Ecualizadores', () => app.go('equalizers')), button('✨ Auto Director', () => app.go('director'))) : null));
+  }
   body.append(group('Formato', true,
     select({ label: 'Destino', options: EXPORT_PRESETS.map((x) => ({ value: x.id, label: x.label })), value: ex.preset, onChange: (v) => { set('preset', v); const asp = { tiktok: '9:16', capcut: '9:16', youtube: '16:9', square: '1:1', custom: 'custom' }[v]; if (asp !== p.aspect) app.store.commit('Formato', (pp) => { pp.aspect = asp; }, 'aspect'); } }),
     ex.preset === 'custom' ? el('div', { class: 'btn-row' }, numIn('Ancho', ex.custom?.w || 1080, (v) => app.store.commit('Ancho', (pp) => { pp.export.custom = { ...(pp.export.custom || { w: 1080, h: 1920 }), w: v }; pp.customSize = pp.export.custom; }, 'aspect')), numIn('Alto', ex.custom?.h || 1920, (v) => app.store.commit('Alto', (pp) => { pp.export.custom = { ...(pp.export.custom || { w: 1080, h: 1920 }), h: v }; pp.customSize = pp.export.custom; }, 'aspect'))) : null,
@@ -319,6 +329,7 @@ export function renderSettings(app, body) {
     select({ label: 'Tamaño máximo de texturas de fotos', options: [{ value: 0, label: 'Según el modo' }, { value: 1024, label: '1024 px' }, { value: 2048, label: '2048 px' }, { value: 4096, label: '4096 px' }], value: pr.maxPhoto, onChange: (v) => { pr.maxPhoto = +v; app.savePrefs(); app.reloadPhotoTextures(); } }),
   ));
   body.append(group('Proyecto', true,
+    select({ label: 'Al iniciar la app', options: [{ value: 'ask', label: 'Preguntar' }, { value: 'continue', label: 'Continuar el último proyecto' }, { value: 'new', label: 'Empezar un proyecto vacío' }], value: pr.startup || 'ask', onChange: (v) => { pr.startup = v; app.savePrefs(); } }),
     toggle({ label: 'Autoguardado', value: pr.autosave, onChange: (v) => { pr.autosave = v; app.savePrefs(); } }),
     btnRow(button('Liberar memoria de la GPU', () => { app.engine.disposeAll(); app.resizePreview(true); toast('Memoria liberada'); }))));
   const i = app.engine.info();

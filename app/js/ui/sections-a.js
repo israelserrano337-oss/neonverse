@@ -11,7 +11,7 @@ import { EQUALIZERS, EQ_PARAMS, EQ_BY_ID } from '../studios/equalizers.js';
 import { PHOTO_SETTINGS, PHOTO_CLIP_PARAMS, PHOTO_FX } from '../studios/photos.js';
 import { FILTERS } from '../studios/effects.js';
 import { TRANSITIONS, TRANSITION_PARAMS } from '../studios/transitions.js';
-import { addClip } from '../timeline/model.js';
+import { addClip, has3D } from '../timeline/model.js';
 import { BS_MODES, BS_TRANSITIONS, BS_LOOKS, modeAt } from '../beatsync/BeatSync.js';
 import { SLIDE_EVERY, SLIDE_LOOKS, SLIDE_HITFX, isHitMode } from '../timeline/slideshow.js';
 
@@ -165,7 +165,8 @@ function layerStudio(app, body, kind, opts = {}) {
   });
   wrap.append(group(`Capas superpuestas (${layers.length}/${K.max})`, true, list,
     btnRow(button(`＋ Añadir capa de ${K.label}`, () => { if (layers.length >= K.max) return toast(`Máximo ${K.max} capas`, true); const t = K.list[(layers.length * 3) % K.list.length]; layers.push({ id: uid('st'), type: t.id, params: { ...(t.defaults || {}), opacity: 0.6 } }); app._studioActive = { ...(app._studioActive || {}), [kind]: layers.at(-1).id }; app.requestRender(); app.renderSection(); })),
-    hint('Las capas se dibujan una encima de otra en la vista previa del estudio.')));
+    hint('Las capas se dibujan una encima de otra.'),
+    !has3D(p) ? note('Mientras la línea de tiempo no tenga túneles, mallas ni ecualizadores, estas capas (de todos los estudios, combinadas) son el fondo de todo el vídeo y se exportan tal cual.') : hint('La línea de tiempo ya tiene clips 3D: estas capas solo se usan si las añades con «➜ Añadir a la línea de tiempo».')));
   wrap.append(group('Tipo', true, typeGrid(K, active.type, (id) => { active.type = id; active.params = { ...(K.byId[id].defaults || {}), ...pickKeep(active.params) }; app.requestRender(); app.renderSection(); })));
   const params = withDefaults(K.schema, { ...(K.byId[active.type]?.defaults || {}), ...active.params });
   wrap.append(group('Controles', true, paramsForm(K.schema, params, (k, v) => { active.params[k] = v; app.requestRender(); })));
@@ -223,6 +224,13 @@ export function renderPhotos(app, body) {
   const seg = el('div', { class: 'seg' });
   for (const [id, label] of [['show', '▶ Pase en el vídeo'], ['photo', 'Foto seleccionada']]) seg.append(el('button', { class: previewMode === id ? 'on' : '', onclick: () => { app._photoPreview = id; app.renderSection(); } }, label));
   body.append(el('p', { class: 'hint' }, 'Vista previa:'), seg);
+  body.append(group('Fotos en el vídeo', true,
+    toggle({ label: 'Mostrar las fotos en el vídeo', value: p.showPhotos !== false, onChange: (v) => { app.store.commit(v ? 'Mostrar fotos' : 'Ocultar fotos', (pp) => { pp.showPhotos = v; }); app.renderSection(); } }),
+    hint(p.showPhotos === false ? 'Ocultas: el vídeo se exporta solo con túneles, mallas y ecualizadores. Las fotos siguen cargadas.' : 'Las fotos no son necesarias: sin ellas el vídeo lleva solo túneles, mallas y ecualizadores.'),
+    btnRow(button('🗑 Quitar todas las fotos', async () => {
+      const ok = await modal('Quitar todas las fotos', `Se quitarán ${p.photos.length} foto(s) y sus clips. Túneles, mallas y ecualizadores no cambian. Se puede deshacer con Ctrl+Z.`, [{ label: 'Cancelar', value: 0 }, { label: 'Quitar', value: 1, primary: true }]);
+      if (!ok) return; app.removeAllPhotos(); toast('Fotos quitadas'); app.renderSection();
+    }, 'ghost-btn danger'))));
   body.append(beatSyncPanel(app));
   // Pase al ritmo
   const ss = app._slideOpts = app._slideOpts || { every: 'hits', look: 'full', effect: 'varied', hitFx: 'varied', minGap: 0.25 };

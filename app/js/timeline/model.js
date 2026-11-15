@@ -10,8 +10,22 @@ export const activeIn = (clips, t) => clips.filter((c) => isActive(c, t)).sort((
 let photoProvider = null;
 export function setPhotoProvider(fn) { photoProvider = fn; }
 
+const KINDS_3D = ['tunnels', 'meshes', 'equalizers', 'particles'];
+const DEFAULT_BG = [{ id: 'bg_rings', type: 'rings', params: { speed: 0.6, glow: 1 }, start: 0, dur: 1e9 }];
+/** ¿La línea de tiempo tiene algún clip 3D? Si no, el vídeo usa las capas de los estudios (lo mismo que se ve). */
+export const has3D = (project) => KINDS_3D.some((k) => (project.timeline.tracks[k] || []).length > 0);
+/** Capas de los estudios (túneles + mallas + ecualizadores + partículas combinados) como fondo de todo el vídeo. */
+export function studioBackground(project) {
+  const A = { tunnels: [], meshes: [], equalizers: [], particles: [] };
+  for (const k of KINDS_3D) A[k] = (project.studio?.[k] || []).filter((c) => !c.hidden).map((c) => ({ ...c, start: 0, dur: 1e9 }));
+  if (!KINDS_3D.some((k) => A[k].length)) A.tunnels = DEFAULT_BG;
+  return A;
+}
+
 function layerSet(tracks, t, project) {
-  return { photos: (photoProvider && photoProvider(project, t)) || activeIn(tracks.photos, t), tunnels: activeIn(tracks.tunnels, t), meshes: activeIn(tracks.meshes, t), equalizers: activeIn(tracks.equalizers || [], t), particles: activeIn(tracks.particles, t) };
+  const photos = project.showPhotos === false ? [] : (photoProvider && photoProvider(project, t)) || activeIn(tracks.photos, t);
+  if (!has3D(project)) return { photos, ...studioBackground(project) };
+  return { photos, tunnels: activeIn(tracks.tunnels, t), meshes: activeIn(tracks.meshes, t), equalizers: activeIn(tracks.equalizers || [], t), particles: activeIn(tracks.particles, t) };
 }
 
 /** Qué hay que dibujar en t: capas A (y B si hay transición), iluminación y efectos activos. */

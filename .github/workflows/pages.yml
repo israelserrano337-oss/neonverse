@@ -1,8 +1,7 @@
 # Publica la versión web (carpeta app/) en GitHub Pages en cada push a main.
 name: Publicar NEONVERSE web
+# Solo manual: el sitio se publica con «Deploy from a branch» (main, raíz). Úsalo si cambias Pages a «GitHub Actions».
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

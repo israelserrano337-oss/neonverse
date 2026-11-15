@@ -14,6 +14,8 @@ import { PALETTE_PRESETS, PALETTE_PARAMS, allPalettes } from '../studios/palette
 import { EXPORT_PRESETS, RESOLUTIONS, QUALITIES, DURATIONS, STARTS, outputSize, bitrateFor, exportRange } from '../export/Exporter.js';
 import { clipLabel } from '../timeline/TimelineView.js';
 import { isIOS, shareVideo } from '../export/mobile.js';
+import { CrashGuard, OPS } from '../core/crashguard.js';
+import { longLimits } from '../audio/segment.js';
 import { removeClip, splitClip, duplicateClip, has3D, studioBackground } from '../timeline/model.js';
 
 const $f = (id) => document.getElementById(id);
@@ -21,10 +23,11 @@ const $f = (id) => document.getElementById(id);
 // ================================================================ MÚSICA
 export function renderMusic(app, body) {
   const p = app.store.project, a = p.audio;
-  body.append(btnRow(button(a ? '🎵 Cambiar canción' : '🎵 Cargar canción', () => $f('file-audio').click(), 'neon-btn small')), hint('MP3, WAV, AAC/M4A y FLAC si el sistema los admite. Se analiza en tu equipo: duración, BPM, graves/medios/agudos, golpes y secciones.'));
+  body.append(btnRow(button(a ? '🎵 Cambiar canción' : '🎵 Cargar canción', () => $f('file-audio').click(), 'neon-btn small')), hint('MP3, WAV, AAC/M4A y FLAC si el sistema los admite. Se analiza en tu equipo: duración, BPM, graves/medios/agudos, golpes y secciones. Las mezclas largas (más de ' + Math.round(longLimits().seconds / 60) + ' min) se cargan por tramos: eliges la parte y solo se lee esa, para no agotar la memoria.'));
   if (!a) { body.append(note('Sin música. La composición dura ' + Math.round(app.store.duration) + ' s.'), slider({ label: 'Duración sin música (s)', min: 5, max: 600, step: 1, value: p.duration, onChange: (v) => app.store.commit('Duración', (pp) => { pp.duration = v; }, 'aspect') })); return; }
   body.append(group('Información', true, el('div', { class: 'kv' },
-    el('b', {}, 'Archivo'), el('span', {}, a.name), el('b', {}, 'Duración total'), el('span', {}, formatTime(a.duration, true)),
+    el('b', {}, 'Archivo'), el('span', {}, a.name),
+    a.source ? el('b', {}, 'Tramo de') : null, a.source ? el('span', {}, `«${a.source.name}» · desde ${formatTime(a.source.start)} · mezcla de ${formatTime(a.source.total)} · para otro tramo vuelve a cargar la canción`) : null, el('b', {}, 'Duración total'), el('span', {}, formatTime(a.duration, true)),
     el('b', {}, 'Fragmento usado'), el('span', {}, `${formatTime(a.trimStart, true)} → ${formatTime(a.trimEnd, true)} (${formatTime(app.store.duration, true)})`),
     el('b', {}, 'BPM'), el('span', {}, `${app.analysis.bpm} (confianza ${Math.round((app.analysis.d.tempoConfidence || 0) * 100)} %)`),
     el('b', {}, 'Golpes'), el('span', {}, String(app.analysis.beats.length)))));
@@ -328,6 +331,16 @@ export function renderSettings(app, body) {
     slider({ label: 'Reducción de partículas (vista previa)', min: 0.2, max: 1, step: 0.05, value: pr.particleMul, onChange: (v) => { pr.particleMul = v; app.savePrefs(); app.engine.disposeAll(); app.resizePreview(true); } }),
     select({ label: 'Tamaño máximo de texturas de fotos', options: [{ value: 0, label: 'Según el modo' }, { value: 1024, label: '1024 px' }, { value: 2048, label: '2048 px' }, { value: 4096, label: '4096 px' }], value: pr.maxPhoto, onChange: (v) => { pr.maxPhoto = +v; app.savePrefs(); app.reloadPhotoTextures(); } }),
   ));
+  {
+    const cr = CrashGuard.crashes(), er = CrashGuard.errors();
+    const fmtD = (t) => new Date(t).toLocaleString('es-ES');
+    body.append(group('Estabilidad (anticierres)', false,
+      el('p', { class: 'hint' }, 'Antes de cada operación pesada (cargar música o fotos, abrir un proyecto, exportar) se guarda el proyecto y se deja una marca. Si la app se cierra a mitad (p. ej. iOS sin memoria), al volver se arranca en modo seguro y puedes abrir el proyecto sin lo que causó el cierre.'),
+      app.safeMode ? note('Modo seguro activo en esta sesión (vista previa en «Rendimiento»).') : null,
+      el('p', { class: 'hint' }, cr.length ? `Cierres detectados: ${cr.length} · último: ${OPS[cr[cr.length - 1].op] || cr[cr.length - 1].op} (${fmtD(cr[cr.length - 1].t)})` : 'Sin cierres detectados.'),
+      el('p', { class: 'hint' }, er.length ? `Errores evitados: ${er.length} · último: ${er[er.length - 1].msg}` : 'Sin errores registrados.'),
+      (cr.length || er.length) ? btnRow(button('Borrar registro', () => { CrashGuard.clear(); app.renderSection(); })) : null));
+  }
   body.append(group('Proyecto', true,
     select({ label: 'Al iniciar la app', options: [{ value: 'ask', label: 'Preguntar' }, { value: 'continue', label: 'Continuar el último proyecto' }, { value: 'new', label: 'Empezar un proyecto vacío' }], value: pr.startup || 'ask', onChange: (v) => { pr.startup = v; app.savePrefs(); } }),
     toggle({ label: 'Autoguardado', value: pr.autosave, onChange: (v) => { pr.autosave = v; app.savePrefs(); } }),

@@ -4,6 +4,8 @@ import { MediaStore } from './core/media.js';
 import { uid, debounce, clamp, formatTime, deepClone, schemaDefaults } from './core/util.js';
 import { Player } from './audio/player.js';
 import { decodeAudio, analyzeBuffer, audioContext } from './audio/loader.js';
+import { longLimits, isLong, probeDuration, extractSegment, encodeWav } from './audio/segment.js';
+import { CrashGuard, OPS } from './core/crashguard.js';
 import { SyntheticAnalysis, BAND_NAMES } from './audio/analysis.js';
 import { Engine } from './engine/Engine.js';
 import { evaluate, studioComposition, addClip, removeClip, splitClip, duplicateClip, getClip } from './timeline/model.js';
@@ -30,6 +32,8 @@ const QUALITY = {
   export: { level: 'x', particles: 1, segments: 1, bloomScale: 0.25, maxPhoto: 4096 },
 };
 const PREFS_KEY = 'neonverse-prefs';
+/** h:mm:ss para mezclas largas, m:ss para el resto. */
+const formatLong = (x) => { x = Math.max(0, Math.floor(x)); const h = Math.floor(x / 3600), m = Math.floor((x % 3600) / 60), sec = x % 60; return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + ':' + String(sec).padStart(2, '0'); };
 
 class App {
   constructor() {
@@ -68,6 +72,10 @@ class App {
     this.buildNav();
     this.bindUI();
     this.setupMobile();
+    CrashGuard.install((m) => toast('Se evitó un error: ' + m, true, 5000));
+    this.crash = new URLSearchParams(location.search).get('selftest') ? null : CrashGuard.takeCrash();
+    if (this.crash) { this.safeMode = true; this._prevQuality = this.prefs.quality; this.prefs.quality = 'performance'; this._safeQ = true; const qs = document.getElementById('quality-select'); if (qs) qs.value = 'performance'; try { this.resizePreview(true); } catch {} }
+    this.engine.onRestore = () => { toast('Gráficos recuperados'); this.reloadPhotoTextures().catch(() => {}); this.requestRender(); };
     msg('Recuperando el último proyecto…');
     await this.restoreAutosave({ ask: !new URLSearchParams(location.search).get('selftest') });
     this.store.on('change', (kind) => this.onChange(kind));
@@ -109,12 +117,12 @@ class App {
     return q;
   }
   setQuality(mode) {
-    this.prefs.quality = mode; this.savePrefs();
+    this.prefs.quality = mode; this._safeQ = false; this.savePrefs();
     this.engine.disposeAll(); this.resizePreview(true);
     this.reloadPhotoTextures();
     document.getElementById('quality-select').value = mode;
   }
-  savePrefs() { localStorage.setItem(PREFS_KEY, JSON.stringify(this.prefs)); }
+  savePrefs() { const pr = { ...this.prefs }; if (this._safeQ && pr.quality === 'performance') pr.quality = this._prevQuality; localStorage.setItem(PREFS_KEY, JSON.stringify(pr)); } // el modo seguro no se guarda
 
   frameAspect() {
     const p = this.store.project;
@@ -296,22 +304,72 @@ class App {
   }
 
   // ---------------------------------------------------------------- medios
-  async loadAudioFile(file) {
+  /**
+   * Carga una canción. Las largas (mezclas de 1 h…) no se decodifican enteras: se elige un tramo y solo
+   * se lee esa parte del archivo; el proyecto guarda únicamente el tramo (WAV), no la mezcla completa.
+   */
+  async loadAudioFile(file, { suggestStart = 0 } = {}) {
     try {
-      toast('Cargando música…');
-      const buf = await file.arrayBuffer();
-      let decoded;
-      try { decoded = await decodeAudio(buf); }
-      catch { throw new Error('Formato no compatible en este navegador. Prueba MP3, WAV o AAC.'); }
-      const mediaId = await this.media.put(file, file.name);
+      toast('Leyendo la canción…');
+      const lim = longLimits();
+      const total = await probeDuration(file);
+      let decoded, store = file, name = file.name, source = null;
+      if (isLong({ duration: total, size: file.size }, lim)) {
+        if (!Number.isFinite(total)) throw new Error('Canción demasiado grande y sin duración legible. Conviértela a MP3 o M4A.');
+        this.autosave();
+        const pick = await this.pickSegment(file, total, lim, suggestStart);
+        if (!pick) return;
+        const hud = document.getElementById('hud-section');
+        decoded = await CrashGuard.run('segment', `${file.name} ${formatTime(pick.start)}`, async () => { const t0 = performance.now(); const r = await extractSegment(file, pick.start, pick.dur, (p) => { hud.textContent = `LEYENDO TRAMO ${Math.round(p * 100)}%`; }); console.log(`[tramo] ${r.method} · ${(performance.now() - t0).toFixed(0)} ms · ${r.buffer.duration.toFixed(2)} s`); return r.buffer; });
+        const base = file.name.replace(/\.[^.]+$/, '');
+        name = `${base} (${formatLong(pick.start)}–${formatLong(pick.start + pick.dur)}).wav`;
+        store = encodeWav(decoded);
+        source = { name: file.name, start: +pick.start.toFixed(3), dur: pick.dur, total: +total.toFixed(2) };
+      } else {
+        this.autosave();
+        decoded = await CrashGuard.run('audio', file.name, async () => {
+          try { return await decodeAudio(await file.arrayBuffer()); }
+          catch { throw new Error('Formato no compatible en este navegador. Prueba MP3, WAV o AAC.'); }
+        });
+      }
+      const mediaId = await this.media.put(store, name);
       await this.setAudioBuffer(decoded, true);
       const old = this.store.project.audio;
       this.store.commit('Cargar música', (p) => {
-        p.audio = { mediaId, name: file.name, mime: file.type, duration: decoded.duration, trimStart: 0, trimEnd: decoded.duration, markers: [], bpm: this.analysis.bpm };
+        p.audio = { mediaId, name, mime: store.type, duration: decoded.duration, trimStart: 0, trimEnd: decoded.duration, markers: [], bpm: this.analysis.bpm, source };
       }, 'audio');
       if (old?.mediaId && old.mediaId !== mediaId) this.media.remove(old.mediaId);
       toast(`Música lista: ${this.analysis.bpm} BPM · ${this.analysis.sections.length} secciones`);
     } catch (e) { console.error(e); toast(e.message || 'No se pudo cargar la música', true, 5000); }
+  }
+  /** Selector de tramo para canciones largas: se escucha en streaming (sin cargar la mezcla en memoria). */
+  async pickSegment(file, total, lim, suggestStart = 0) {
+    const url = URL.createObjectURL(file);
+    const lens = [15, 30, 45, 60, 90, 120, 180, 300, 600, 900].filter((x) => x <= lim.maxSegment && x < total);
+    const st = { dur: lens.includes(60) ? 60 : lens[lens.length - 1] || Math.floor(total), start: 0 };
+    st.start = Math.min(Math.max(0, suggestStart), Math.max(0, total - st.dur));
+    const audio = el('audio', { controls: true, preload: 'metadata', src: url, style: { width: '100%' } });
+    audio.playsInline = true;
+    const range = el('input', { type: 'range', min: 0, max: Math.max(0, Math.floor(total - st.dur)), step: 1, value: Math.floor(st.start), style: { width: '100%' } });
+    const label = el('p', { class: 'hint', style: { fontSize: '15px', color: 'var(--text, #fff)' } });
+    const upd = () => { st.start = Math.min(st.start, Math.max(0, total - st.dur)); range.max = Math.max(0, Math.floor(total - st.dur)); range.value = Math.floor(st.start); label.textContent = `Tramo: ${formatLong(st.start)} → ${formatLong(st.start + st.dur)} (${st.dur} s)`; };
+    range.oninput = () => { st.start = +range.value; upd(); };
+    const nudge = (d) => el('button', { class: 'ghost-btn', onClick: () => { st.start = clamp(st.start + d, 0, Math.max(0, total - st.dur)); upd(); } }, (d > 0 ? '+' : '−') + Math.abs(d) + ' s');
+    const durSel = el('select', { onChange: (e) => { st.dur = +e.target.value; upd(); } }, ...lens.map((x) => el('option', { value: x, selected: x === st.dur }, x < 60 ? `${x} s` : `${x / 60} min`)));
+    const listen = el('button', { class: 'ghost-btn', onClick: () => { audio.currentTime = st.start; audio.play().catch(() => {}); } }, '▶ Escuchar el tramo');
+    const here = el('button', { class: 'ghost-btn', onClick: () => { st.start = clamp(audio.currentTime, 0, Math.max(0, total - st.dur)); upd(); } }, '⤓ Empezar donde va el reproductor');
+    upd();
+    const body = el('div', { class: 'segment-picker' },
+      el('p', {}, `«${file.name}» dura ${formatLong(total)} (${(file.size / 1048576).toFixed(0)} MB). Para no agotar la memoria${isLong({ duration: total, size: 0 }, longLimits(true)) ? ' del iPhone' : ''}, elige el tramo que quieres usar: solo se leerá esa parte.`),
+      audio,
+      el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', margin: '8px 0' } }, el('span', {}, 'Duración del tramo'), durSel),
+      range, label,
+      el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, nudge(-10), nudge(-1), nudge(1), nudge(10)),
+      el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' } }, listen, here),
+      el('p', { class: 'hint' }, 'Consejo: escucha la mezcla, pausa donde empieza la parte que te gusta y pulsa «Empezar donde va el reproductor».'));
+    const r = await modal('Canción larga: elige el tramo', body, [{ label: 'Cancelar', value: 'cancel' }, { label: 'Usar este tramo', value: 'ok', primary: true }]);
+    audio.pause(); audio.removeAttribute('src'); audio.load(); URL.revokeObjectURL(url);
+    return r === 'ok' ? { start: st.start, dur: Math.min(st.dur, total - st.start) } : null;
   }
   async setAudioBuffer(decoded, analyze = true) {
     this.audioBuffer = decoded;
@@ -332,12 +390,14 @@ class App {
     const added = [];
     for (const f of ok) {
       try {
+        CrashGuard.begin('photos', f.name);
         const mediaId = await this.media.put(f, f.name);
         const img = await this.media.image(mediaId, this.qualityFor().maxPhoto);
         const id = uid('ph');
         this.engine.setPhotoImage(id, img);
         added.push({ id, mediaId, name: f.name.replace(/\.[^.]+$/, '') || `foto ${this.store.project.photos.length + added.length + 1}`, w: img.srcW, h: img.srcH, luma: +img.luma.toFixed(3), addedAt: Date.now(), settings: schemaDefaults(PHOTO_SETTINGS) });
       } catch (e) { console.warn('Foto no válida', f.name, e); }
+      finally { CrashGuard.end(); }
     }
     if (added.length) this.store.commit(`Añadir ${added.length} foto(s)`, (p) => { p.photos.push(...added); }, 'photos');
     if (added.length && !this.store.project.timeline.tracks.photos.length) {
@@ -382,6 +442,19 @@ class App {
       const empty = !rp.audio && !rp.photos?.length && !Object.values(rp.timeline?.tracks || {}).some((c) => c.length);
       if (empty) return; // nada que recuperar: no se pregunta
       let choice = this.prefs.startup || 'ask';
+      if (this.crash) {
+        const c = this.crash, heavyAudio = ['audio', 'segment', 'open'].includes(c.op);
+        const body = el('div', {}, el('p', {}, `NEONVERSE se cerró mientras ${OPS[c.op] || c.op}${c.detail ? ` («${c.detail}»)` : ''}. En el iPhone suele ser por falta de memoria.`),
+          el('p', { class: 'hint' }, 'Modo seguro activado para esta sesión: calidad de vista previa «Rendimiento».' + (c.op === 'export' ? ' Para exportar en el iPhone usa 720p o 1080p a 30 FPS.' : '') + (heavyAudio ? ' Las canciones largas ahora se cargan por tramos: solo se lee la parte que elijas.' : '')),
+          c.repeat > 1 ? el('p', { class: 'hint' }, `Se ha cerrado ${c.repeat} veces seguidas en el mismo paso: abre el proyecto sin la música y vuelve a cargarla.`) : null);
+        const acts = [{ label: 'Empezar proyecto nuevo', value: 'new' }, { label: 'Abrir sin la música', value: 'nomusic' }];
+        if (!(heavyAudio && c.repeat > 1)) acts.push({ label: 'Abrir el proyecto', value: 'continue', primary: true });
+        else acts[1].primary = true;
+        const ch = await modal('Recuperación tras un cierre', body, acts);
+        if (ch === 'new' || ch == null) { await this.media.libPut('autosave', null); return; }
+        await this.openProject(rec.project, { silent: true, skipAudio: ch === 'nomusic' });
+        return;
+      }
       if (choice === 'ask' && ask) {
         const p = rec.project;
         const what = el('div', {}, el('p', {}, `Último proyecto: «${p.name}»`), el('p', { class: 'hint' }, `${p.audio ? 'Canción: ' + p.audio.name : 'Sin canción'} · ${p.photos?.length || 0} foto(s) · guardado ${new Date(rec.savedAt).toLocaleString('es-ES')}`),
@@ -399,17 +472,26 @@ class App {
     this.store.commit('Quitar todas las fotos', (p) => { p.photos = []; p.timeline.tracks.photos = []; p.beatSync.enabled = false; p.beatSync.nudges = []; });
     this.store.select({});
   }
-  async openProject(project, { silent = false } = {}) {
+  async openProject(project, { silent = false, skipAudio = false } = {}) {
     const p = normalizeProject(project);
     this.player.stop();
     this.audioBuffer = null; this.player.setBuffer(null);
     this.analysis = new SyntheticAnalysis(p.duration || 30);
     for (const id of [...this.engine.textures.keys()]) this.engine.dropPhoto(id);
     this.store.replace(p, 'load');
-    if (p.audio?.mediaId) {
-      const ab = await this.media.arrayBuffer(p.audio.mediaId);
-      if (ab) { try { await this.setAudioBuffer(await decodeAudio(ab), true); } catch (e) { console.warn(e); } }
-      else if (!silent) toast('Falta el archivo de música de este proyecto: vuelve a cargarlo', true, 5000);
+    if (p.audio?.mediaId && skipAudio) {
+      this.store.commit('Quitar música', (pp) => { pp.audio = null; }, 'audio');
+      toast('Proyecto abierto sin la música: vuelve a cargarla (las canciones largas se cargan por tramos)', false, 6000);
+    } else if (p.audio?.mediaId) {
+      const it = await this.media.get(p.audio.mediaId);
+      if (!it) { if (!silent) toast('Falta el archivo de música de este proyecto: vuelve a cargarlo', true, 5000); }
+      else if (isLong({ duration: p.audio.duration, size: it.blob.size })) {
+        // Proyecto antiguo con una canción larga entera: se pide el tramo en lugar de decodificarla toda
+        const f = new File([it.blob], p.audio.name || 'cancion', { type: it.type || p.audio.mime || '' });
+        await this.loadAudioFile(f, { suggestStart: p.audio.trimStart || 0 });
+      } else {
+        try { await CrashGuard.run('open', p.audio.name, async () => this.setAudioBuffer(await decodeAudio(await it.blob.arrayBuffer()), true)); } catch (e) { console.warn(e); toast('No se pudo leer la música del proyecto: vuelve a cargarla', true, 5000); }
+      }
     }
     this.store._changed('load');
     for (const ph of p.photos) this.ensurePhoto(ph).catch(() => {});

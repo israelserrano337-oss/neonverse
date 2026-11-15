@@ -190,7 +190,7 @@ export class Engine {
     });
     this.lost = false;
     canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.lost = true; console.warn('Contexto WebGL perdido'); });
-    canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.rt = {}; this.size = { w: 0, h: 0 }; this.slots.forEach((s) => s.clear()); this.textures.clear(); });
+    canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.rt = {}; this.size = { w: 0, h: 0 }; this.slots.forEach((s) => s.clear()); this.textures.clear(); this.onRestore?.(); });
   }
 
   info() {

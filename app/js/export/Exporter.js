@@ -1,6 +1,7 @@
 // Exportador MP4: vuelve a dibujar cada fotograma en t = inicio + i/fps (no graba la pantalla).
 // Escritorio: píxeles → FFmpeg (H.264/H.265, CPU o Intel QuickSync). Navegador: WebCodecs + mp4-muxer.
 import { evaluate } from '../timeline/model.js';
+import { CrashGuard } from '../core/crashguard.js';
 import { PositionedSink, aacAudioSpecificConfig, isIOS, canShareVideo, keepAwake } from './mobile.js';
 
 export const EXPORT_PRESETS = [
@@ -79,6 +80,7 @@ export class Exporter {
     const wasPlaying = app.player.playing;
     app.player.pause();
     app.exporting = true;
+    CrashGuard.begin('export', `${W}x${H} ${fps} fps ${(t1 - t0).toFixed(0)} s`);
     const quality = { ...app.qualityFor('export') };
     const startedAt = performance.now();
     let sink = null;
@@ -120,7 +122,7 @@ export class Exporter {
     } finally {
       document.removeEventListener('visibilitychange', onHide);
       try { await wake?.release(); } catch {}
-      this.running = false;
+      this.running = false; CrashGuard.end();
       app.exporting = false;
       app.engine.disposeAll();
       app.resizePreview(true);

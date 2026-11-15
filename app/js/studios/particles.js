@@ -99,9 +99,9 @@ function build(style) {
       update(t, a, p, env) {
         const u = mat.uniforms;
         setCommon(mat, p, { uTime: t, uGlow: p.glow * (0.85 + 0.3 * (a.energySoft ?? a.energy ?? 0) * p.react) });
-        u.uSpeed.value = p.speed; u.uSize.value = p.size * (1 + 0.2 * (a.beat || 0) * p.react); u.uSpread.value = p.spread;
-        u.uBass.value = (a.bass || 0) * p.react; u.uBeatPos.value = a.beatPos || 0; u.uReact.value = p.react;
-        u.uTravel.value = p.speed * (t * 5 + (a.travelBass || 0) * 2.5 * Math.min(1.5, p.react));
+        u.uSpeed.value = p.speed; const kp = Math.min(1, a.kickPulse || 0) * Math.min(1.5, p.react); u.uSize.value = p.size * (1 + 0.6 * kp); u.uSpread.value = p.spread * (1 + 0.25 * kp);
+        u.uBass.value = (a.bass || 0) * p.react; u.uBeatPos.value = a.kickIndex >= 0 ? a.kickIndex + Math.min(0.999, (a.kickAge0 || 0) / 0.6) : a.beatPos || 0; // chispas: estallido en cada bombo real u.uReact.value = p.react;
+        u.uTravel.value = p.speed * (t * 5 + (a.travelBass || 0) * 2.5 * Math.min(1.5, p.react) + (a.kickTravel || 0) * 15 * Math.min(1.5, p.react) - t * 2.6 * Math.min(1, p.react) * (a.kickTravel !== undefined ? 1 : 0));
         u.uPix.value = env?.pixelRatio ?? 1;
       },
     };

@@ -9,6 +9,8 @@
 | Exportación navegador | `python3 qa/browser_export.py` | WebCodecs + mp4-muxer, descarga y pistas |
 | iPhone | `python3 qa/iphone.py` | Diseño en 393×852 táctil, sin desbordamientos |
 | Beat-Sync | `python3 qa/beatsync.py` | Modos 1/2, 1, 2 y AUTO KICK; cambios de modo, NEXT y PREVIOUS en reproducción; un solo AudioContext; MP4 = vista previa fotograma a fotograma; destellos por segundo; coste |
+| Sincronía visual | `python3 qa/sync.py [visual]` | Para cada visual: movimiento tras cada bombo frente al resto (contraste), retraso en fotogramas y salto de brillo |
+| Duraciones de exportación | `python3 qa/export_clips.py` | Botones 15/30/45/60 s, exporta 15 s y 30 s desde la interfaz: duración exacta, fotogramas, fundido final del audio, sincronía del movimiento en el MP4 |
 | Escritorio | `electron . --selftest-export="salida.mp4|t0|t1|ancho|alto"` | Abre el ejemplo con música, exporta con FFmpeg y termina con código 0/1 |
 
 Los scripts `qa/` usan Playwright con Google Chrome (`/usr/bin/google-chrome`); ajusta la ruta en tu equipo.

@@ -1,6 +1,6 @@
 # Estado del proyecto — NEONVERSE AI 2.0
 
-**Versión:** 2.4.0 · **Fecha:** 14-11-2026 · **Modelo que lo construyó:** Opus 5.5
+**Versión:** 2.5.0 · **Fecha:** 14-11-2026 · **Modelo que lo construyó:** Opus 5.5
 
 ## Hecho y verificado
 - Fases 1–12 completas: arquitectura, identidad visual, motor 3D, mallas, fotos/filtros/transiciones, música y análisis, Auto Director, línea de tiempo, exportador, versión iPhone, rendimiento, pruebas y EXE.

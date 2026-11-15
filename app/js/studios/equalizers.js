@@ -91,7 +91,9 @@ function common(mat, p, a, D) {
   setCommon(mat, p, { uGlow: Math.min(2.2, p.glow), uNear: 0.5, uNearW: 1, uFar: D + 60 });
 }
 /** Rotación determinista: velocidad base·t + empuje musical (integral de la energía). */
-const spinOf = (t, a, p, base, music) => (p.speed ?? 1) * (base * t + music * (a.travel || 0) * Math.min(1.5, p.react ?? 1));
+const spinOf = (t, a, p, base, music) => (p.speed ?? 1) * (base * t + music * (a.travel || 0) * Math.min(1.5, p.react ?? 1) + music * 0.9 * (a.kickTravel || 0) * Math.min(1.5, p.react ?? 1));
+/** Pulso de bombo real (movimiento), con la reacción del ecualizador. */
+const kickOf = (a, r) => Math.min(1, a.kickPulse || 0) * Math.min(1, r); // nunca más de 1 aunque la reacción sea alta
 
 // ================================================================ 0 · Reactor
 function buildReactor(p) {
@@ -126,14 +128,14 @@ function buildReactor(p) {
   return {
     object: root,
     update(t, a, p, env) {
-      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, midS = (a.midSoft ?? a.mid ?? 0) * r, trS = (a.trebleSoft ?? a.treble ?? 0) * r, beat = (a.beat || 0) * r;
+      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, midS = (a.midSoft ?? a.mid ?? 0) * r, trS = (a.trebleSoft ?? a.treble ?? 0) * r, beat = kickOf(a, r);
       const ac = accents(p), core = p.core ?? 1;
       const D = frameDist(env) / (p.scale || 1);
       root.position.set(0, 0, -D);
       tilt.rotation.x = Math.PI / 2 - 1.3 + (p.tilt || 0);
       body.rotation.y = -(0.9 + (p.orbit ?? 0.35) * Math.sin(t * 0.1)) - spinOf(t, a, p, 0.07, 0.2);
-      heart.scale.setScalar(1 + bassS * 0.5 + beat * 0.18); heart.material.color.copy(ac.core); heart.material.opacity = Math.min(1, core);
-      heartHalo.scale.setScalar(6 + bassS * 7 + beat * 2.5); heartHalo.material.color.copy(ac.warm); heartHalo.material.opacity = (0.4 + bassS * 0.35) * core * 0.65;
+      heart.scale.setScalar(1 + bassS * 0.4 + beat * 0.5); heart.material.color.copy(ac.core); heart.material.opacity = Math.min(1, core);
+      heartHalo.scale.setScalar(6 + bassS * 7 + beat * 1.5); heartHalo.material.color.copy(ac.warm); heartHalo.material.opacity = (0.4 + bassS * 0.35) * core * 0.65;
       lattice.scale.setScalar(1 + bassS * 0.35); lattice.rotation.y = spinOf(t, a, p, 0.25, 1.4); lattice.rotation.x = 0.12 * t; lattice.material.opacity = 0.4 + trS * 0.45;
       cage.scale.setScalar(1 + midS * 0.4); cage.rotation.y = -spinOf(t, a, p, 0.15, 0.8); cage.rotation.z = 0.08 * t;
       axis.material.opacity = 0.1 + bassS * 0.3 + beat * 0.1; axis.scale.x = axis.scale.z = 1 + bassS * 2;
@@ -146,12 +148,12 @@ function buildReactor(p) {
       let n = 0;
       const hMul = p.height ?? 1;
       for (let tr = -TIERS; tr <= TIERS; tr++) {
-        const k = Math.abs(tr), fr = histAt(frames, k * 3), fade = 1 - k / (TIERS + 1.6), rr = BR + k * 0.32, y = tr * 0.55;
+        const k = Math.abs(tr), fr = histAt(frames, k * 3), fade = 1 - k / (TIERS + 1.6), rr = BR + k * 0.32 + beat * 0.6, y = tr * 0.55 * (1 + beat * 0.35);
         for (let i = 0; i < NB; i++) {
-          const b = bandOf(i), v = fr[b], ang = (i / NB) * 6.2832, h = 0.1 + Math.pow(v, 1.5) * 7 * fade * hMul;
+          const b = bandOf(i), v = fr[b], ang = (i / NB) * 6.2832, h = (0.1 + Math.pow(v, 1.5) * 7 * fade * hMul) * (1 + beat * 0.45);
           Q.setFromAxisAngle(yA, -ang); P.set(Math.cos(ang) * (rr + h / 2), y, Math.sin(ang) * (rr + h / 2)); S.set(h, 0.07, 0.24);
           M.compose(P, Q, S); bars.setMatrixAt(n, M);
-          setBox(bars, n++, (b / (NBAND - 1)) * 0.667, (0.25 + v * 0.95) * fade * 0.8);
+          setBox(bars, n++, (b / (NBAND - 1)) * 0.667, ((0.25 + v * 0.95) * fade * 0.8) / (1 + beat * 0.2)); // brillo compensado en parte: más alto, algo menos intenso
         }
       }
       flush(bars);
@@ -162,9 +164,8 @@ function buildReactor(p) {
       }
       segRoot.rotation.y = t * 0.05;
       // ondas de choque en los últimos golpes (envolvente de 1,4 s, sin estado)
-      const bp = a.beatPos || 0, bps = a.bps || 2;
-      for (let k = 0; k < 3; k++) {
-        const s = shocks[k], age = (bp - Math.floor(bp) + k) / bps, life = 1 - age * 0.7;
+      for (let k = 0; k < 3; k++) { // una onda por cada bombo real
+        const s = shocks[k], age = a['kickAge' + k] ?? 99, life = 1 - age * 0.7;
         s.visible = life > 0;
         if (!s.visible) continue;
         s.scale.setScalar(BR * 0.8 + (1 - life) * 16); s.material.opacity = life * 0.35 * (0.4 + 0.6 * bassS); s.material.color.copy(ac.ice);
@@ -189,7 +190,7 @@ function buildPulsar() {
   return {
     object: root,
     update(t, a, p, env) {
-      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, midS = (a.midSoft ?? a.mid ?? 0) * r, beat = (a.beat || 0) * r;
+      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, midS = (a.midSoft ?? a.mid ?? 0) * r, beat = kickOf(a, r);
       const ac = accents(p), core = p.core ?? 1;
       const D = frameDist(env) / (p.scale || 1);
       root.position.set(0, 0, -D);
@@ -198,18 +199,18 @@ function buildPulsar() {
       const cur = hist.update(t, a, p, env)[0];
       const lim = limiter(cur);
       // altura limitada: los 480 rayos ocupan casi toda la pantalla (evita destellos al crecer de golpe)
-      const r0 = 2.5 + bassS * 1.3 + beat * 0.6, hMul = Math.min(1.5, p.height ?? 1);
+      const r0 = 2.5 + bassS * 1.1 + beat * 1.5, hMul = Math.min(1.5, p.height ?? 1);
       for (let i = 0; i < NS; i++) {
-        const b = pbd[i], v = cur[b], len = 0.25 + Math.pow(v, 1.3) * 8 * hMul, w = 0.08 + v * 0.1;
+        const b = pbd[i], v = cur[b], len = (0.25 + Math.pow(v, 1.3) * 8 * hMul) * (1 + beat * 0.35), w = 0.08 + v * 0.1;
         P.copy(pdir[i]).multiplyScalar(r0 + len / 2); S.set(len, w, w);
         M.compose(P, pq[i], S); pm.setMatrixAt(i, M);
-        setBox(pm, i, (b / (NBAND - 1)) * 0.667, (0.3 + v * 0.9) * 0.45 * lim);
+        setBox(pm, i, (b / (NBAND - 1)) * 0.667, ((0.3 + v * 0.9) * 0.45 * lim) / (1 + beat * 0.6));
       }
       flush(pm);
-      pcore.scale.setScalar(1 + bassS * 0.5 + beat * 0.25); pcore.material.color.copy(ac.core); pcore.material.opacity = Math.min(1, core);
-      phalo.scale.setScalar(8 + bassS * 8 + beat * 2); phalo.material.color.copy(ac.warm); phalo.material.opacity = (0.4 + bassS * 0.35) * core * 0.6;
+      pcore.scale.setScalar(1 + bassS * 0.4 + beat * 0.6); pcore.material.color.copy(ac.core); pcore.material.opacity = Math.min(1, core);
+      phalo.scale.setScalar(8 + bassS * 8 + beat * 1.2); phalo.material.color.copy(ac.warm); phalo.material.opacity = (0.4 + bassS * 0.35) * core * 0.6;
       pr2.rotation.set(1.05, spinOf(t, a, p, 0.4, 1.6), 0);
-      const rs = 1 + bassS * 0.25 + beat * 0.1; pr1.scale.setScalar(rs); pr2.scale.setScalar(rs);
+      const rs = 1 + bassS * 0.2 + beat * 0.3; pr1.scale.setScalar(rs); pr2.scale.setScalar(rs);
       ringMat.color.copy(ac.ice); ringMat.opacity = 0.6 * (p.opacity ?? 1);
       common(pm.material, p, a, D);
     },
@@ -226,7 +227,7 @@ function buildVortex() {
   return {
     object: root,
     update(t, a, p, env) {
-      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, enS = (a.energySoft ?? a.energy ?? 0) * r, beat = (a.beat || 0) * r;
+      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, enS = (a.energySoft ?? a.energy ?? 0) * r, beat = kickOf(a, r);
       const ac = accents(p);
       const tn = Math.tan(((env.fov ?? 68) * Math.PI) / 360);
       const off = (15 * TAN24) / tn / (p.scale || 1);
@@ -236,19 +237,19 @@ function buildVortex() {
       body.rotation.z = spinOf(t, a, p, 0.05, 0.45);
       const frames = hist.update(t, a, p, env);
       const lim = Math.pow(limiter(frames[0]), 1.6); // ocupa toda la pantalla: limitador más firme
-      const R0 = 6.4 + bassS * 0.9 + beat * 0.4, bk = 1 + beat * 0.15, hMul = Math.min(1.6, p.height ?? 1);
+      const R0 = 6.4 + bassS * 0.8 + beat * 0.6, bk = 1 + beat * 0.1, hMul = Math.min(1.35, p.height ?? 1); // ocupa toda la pantalla: altura máxima menor
       let n = 0;
       for (let k = 0; k < NT; k++) {
         const fr = histAt(frames, k), fade = 1 - k / (NT + 6), z = -k * 2.6, tw = k * 0.045;
         for (let i = 0; i < NA; i++) {
-          const b = bandOf(i), v = fr[b], ang = (i / NA) * 6.2832 + tw, h = 0.15 + Math.pow(v, 1.4) * 4.5 * fade * hMul;
+          const b = bandOf(i), v = fr[b], ang = (i / NA) * 6.2832 + tw, h = (0.15 + Math.pow(v, 1.4) * 4.5 * fade * hMul) * (1 + beat * 0.3);
           Q.setFromAxisAngle(zA, ang); P.set(Math.cos(ang) * (R0 - h / 2), Math.sin(ang) * (R0 - h / 2), z); S.set(h, 0.22, 0.5);
           M.compose(P, Q, S); vm.setMatrixAt(n, M);
-          setBox(vm, n++, (b / (NBAND - 1)) * 0.667, (0.2 + v * 0.9) * fade * bk * 0.25 * lim);
+          setBox(vm, n++, (b / (NBAND - 1)) * 0.667, ((0.2 + v * 0.9) * fade * bk * 0.25 * lim) / (1 + beat * 0.55));
         }
       }
       flush(vm);
-      vend.material.color.copy(ac.ice); vend.material.opacity = (0.25 + enS * 0.45) * (p.core ?? 1) * 0.5; vend.scale.setScalar(20 + bassS * 12 + beat * 3);
+      vend.material.color.copy(ac.ice); vend.material.opacity = (0.25 + enS * 0.45) * (p.core ?? 1) * 0.5; vend.scale.setScalar(20 + bassS * 12 + beat * 1.5);
       setCommon(vm.material, p, { uGlow: Math.min(2.2, p.glow), uNear: 0.5, uNearW: 1, uFar: off + 90 });
     },
   };
@@ -263,14 +264,14 @@ function buildMatrix() {
   return {
     object: root,
     update(t, a, p, env) {
-      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, beat = (a.beat || 0) * r;
+      const r = Math.min(1.25, p.react), bassS = (a.bassSoft ?? a.bass ?? 0) * r, beat = kickOf(a, r);
       const ac = accents(p);
       const D = frameDist(env, 36, 17.5) / (p.scale || 1); // radio exterior ≈ 15,7: cabe entero también en 9:16
       root.position.set(0, -1.5 * 0.5, -D);
-      tilt.rotation.x = Math.PI / 2 - 0.95 + (p.tilt || 0);
+      tilt.rotation.x = Math.PI / 2 - 0.95 + (p.tilt || 0) - beat * 0.06;
       body.rotation.y = -(0.9 + (p.orbit ?? 0.35) * Math.sin(t * 0.1)) - spinOf(t, a, p, 0.06, 0.28);
       const frames = hist.update(t, a, p, env);
-      const bk = 1 + beat * 0.3, hMul = p.height ?? 1;
+      const bk = 1 + beat * 0.7, hMul = Math.min(1.6, p.height ?? 1); // altura máxima limitada (con el golpe, columnas muy altas deslumbran)
       let n = 0;
       for (let rr = 0; rr < NR; rr++) {
         const fr = histAt(frames, rr * 2), rad = 3 + rr * 1.15, fade = 1 - rr * 0.045, dep = ((rad * 6.2832) / NQ) * 0.62;
@@ -278,12 +279,12 @@ function buildMatrix() {
           const b = bandOf(j), v = fr[b], ang = (j / NQ) * 6.2832, h = 0.18 + Math.pow(v, 1.5) * 10 * fade * bk * hMul;
           Q.setFromAxisAngle(yA, -ang); P.set(Math.cos(ang) * rad, h / 2, Math.sin(ang) * rad); S.set(0.62, h, dep);
           M.compose(P, Q, S); xm.setMatrixAt(n, M);
-          setBox(xm, n++, (b / (NBAND - 1)) * 0.667, (0.2 + v * 0.8) * fade * 0.28 * limiter(fr));
+          setBox(xm, n++, (b / (NBAND - 1)) * 0.667, ((0.2 + v * 0.8) * fade * 0.28 * limiter(fr)) / (1 + beat * 0.35)); // compensación parcial: el golpe se ve y no deslumbra
         }
       }
       flush(xm);
       mcore.material.color.copy(ac.ice);
-      mcore.scale.setScalar(6 + bassS * 7 + beat * 2.5); mcore.material.opacity = (0.2 + bassS * 0.25) * (p.core ?? 1) * 0.4;
+      mcore.scale.setScalar(6 + bassS * 7 + beat * 1.2); mcore.material.opacity = (0.2 + bassS * 0.25) * (p.core ?? 1) * 0.4;
       common(xm.material, p, a, D);
     },
   };

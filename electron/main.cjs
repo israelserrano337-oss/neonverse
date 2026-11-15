@@ -97,6 +97,7 @@ ipcMain.handle('export:start', async (_e, o) => {
       '-vf', o.encoder === 'qsv' ? 'vflip,format=nv12' : 'vflip,format=yuv420p',
       '-map', '0:v', ...(audioPath ? ['-map', '1:a'] : []),
       ...codecArgs(o),
+      ...(audioPath && o.fadeOut > 0 ? ['-af', `afade=t=out:st=${Math.max(0, o.audio.duration - o.fadeOut).toFixed(3)}:d=${o.fadeOut.toFixed(3)}:curve=qsin`] : []),
       ...(audioPath ? ['-c:a', 'aac', '-b:a', `${o.audioBitrate || 192}k`, '-ar', '48000', '-ac', '2', '-shortest'] : []),
       '-r', String(o.fps), '-movflags', '+faststart', out];
     const proc = spawn(ffmpegPath(), args, { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });

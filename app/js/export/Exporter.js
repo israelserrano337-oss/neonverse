@@ -11,6 +11,29 @@ export const EXPORT_PRESETS = [
   { id: 'custom', label: 'Personalizado', aspect: null },
 ];
 export const RESOLUTIONS = [{ id: 720, label: '720p' }, { id: 1080, label: '1080p' }, { id: 1440, label: '1440p' }, { id: 2160, label: '4K (2160p)' }];
+export const DURATIONS = [{ value: 0, label: 'Completo' }, { value: 15, label: '15 s' }, { value: 30, label: '30 s' }, { value: 45, label: '45 s' }, { value: 60, label: '60 s' }];
+export const STARTS = [{ value: 'drop', label: 'Desde el primer drop (lo más intenso)' }, { value: 'start', label: 'Desde el principio' }, { value: 'cursor', label: 'Desde el cursor' }];
+
+/**
+ * Tramo [t0, t1] a exportar. Con duración fija (15/30/45/60 s) el inicio se encaja en el compás y, si no cabe,
+ * se adelanta para que el clip dure exactamente lo elegido (o la canción entera si es más corta).
+ */
+export function exportRange({ total, duration = 0, start = 'drop', cursor = 0, analysis = null, trimStart = 0, loop = null }) {
+  if (loop) return [loop.a, loop.b];
+  if (!duration || duration >= total - 0.01) return [0, total];
+  let t0 = 0;
+  if (start === 'cursor') t0 = cursor;
+  else if (start === 'drop' && analysis && !analysis.synthetic) {
+    const sec = analysis.sections.find((s) => s.type === 'drop' && s.start - trimStart >= 0) || analysis.sections.find((s) => s.type === 'build' && s.start - trimStart >= 0);
+    if (sec) t0 = sec.start - trimStart;
+    // un compás antes del drop: el golpe de entrada se ve en el clip
+    if (t0 > 0 && analysis.bpm) t0 = Math.max(0, t0 - (60 / analysis.bpm) * 4);
+  }
+  if (analysis?.barStart && start !== 'start' && t0 > 0) t0 = Math.max(0, analysis.barStart(t0 + trimStart + 0.05) - trimStart);
+  t0 = Math.min(Math.max(0, t0), Math.max(0, total - duration));
+  return [+t0.toFixed(4), +Math.min(total, t0 + duration).toFixed(4)];
+}
+
 export const QUALITIES = [{ id: 'draft', label: 'Borrador', crf: 28, mbps: 4 }, { id: 'normal', label: 'Normal', crf: 23, mbps: 8 }, { id: 'high', label: 'Alta', crf: 19, mbps: 14 }, { id: 'max', label: 'Máxima', crf: 16, mbps: 24 }];
 
 /** Tamaño de salida: el lado corto es la resolución elegida; dimensiones pares. */
@@ -118,7 +141,7 @@ export class Exporter {
     const q = QUALITIES.find((x) => x.id === opt.quality) || QUALITIES[2];
     const job = await d.exportStart({
       width: W, height: H, fps, codec: opt.codec, encoder: opt.encoder, crf: q.crf, bitrate: opt.bitrateMbps ? bitrate : 0,
-      audio, audioBitrate: opt.audioBitrate || 192, folder: opt.folder, fileName: opt.fileName,
+      audio, audioBitrate: opt.audioBitrate || 192, fadeOut: opt.fadeOut || 0, folder: opt.folder, fileName: opt.fileName,
     });
     if (!job.ok) throw new Error(job.error || 'No se pudo iniciar FFmpeg');
     return {
@@ -173,7 +196,7 @@ export class Exporter {
         await venc.flush();
         if (encErr) throw encErr;
         venc.close();
-        if (aCodec) await encodeAudio(buffer, aCfg, (app.store.project.audio?.trimStart || 0) + t0, t1 - t0, muxer, aCodec);
+        if (aCodec) await encodeAudio(buffer, aCfg, (app.store.project.audio?.trimStart || 0) + t0, t1 - t0, muxer, aCodec, opt.fadeOut || 0);
         muxer.finalize();
         const blob = store.toBlob('video/mp4');
         const name = (opt.fileName || 'neonverse-video').replace(/[\\/:*?"<>|]+/g, '_') + '.mp4';
@@ -189,7 +212,7 @@ export class Exporter {
   }
 }
 
-async function encodeAudio(buffer, cfg, start, duration, muxer, kind) {
+async function encodeAudio(buffer, cfg, start, duration, muxer, kind, fadeOut = 0) {
   let err = null;
   // AAC: se escribe una cabecera AudioSpecificConfig propia (Safari 26 entrega una incorrecta)
   const asc = kind === 'aac' ? aacAudioSpecificConfig(cfg.sampleRate, cfg.numberOfChannels) : null;
@@ -205,6 +228,10 @@ async function encodeAudio(buffer, cfg, start, duration, muxer, kind) {
     const n = Math.min(block, s1 - s);
     const data = new Float32Array(n * ch);
     for (let c = 0; c < ch; c++) data.set(chans[c].subarray(s, s + n), c * n);
+    if (fadeOut > 0) { // fundido final (seno cuadrado), igual que en escritorio
+      const f0 = s1 - Math.floor(fadeOut * sr);
+      if (s + n > f0) for (let c = 0; c < ch; c++) for (let i = Math.max(0, f0 - s); i < n; i++) { const k = (s1 - (s + i)) / (s1 - f0); data[c * n + i] *= Math.sin((Math.PI / 2) * Math.max(0, Math.min(1, k))) ** 2; }
+    }
     const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: ch, timestamp: Math.round(((s - s0) / sr) * 1e6), data });
     enc.encode(ad);
     ad.close();

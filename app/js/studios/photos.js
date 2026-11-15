@@ -248,7 +248,7 @@ export function buildPhotoLayer(p, env) {
       let w, hgt;
       const cover = (p.fit ?? 'cover') === 'cover';
       if ((cropAspect > frameAspect) === cover) { hgt = 2 * hh; w = hgt * cropAspect; } else { w = 2 * hw; hgt = w / cropAspect; }
-      const sc = (p.scale ?? 1) * (1 + 0.03 * (a.beat || 0) * (p.react ?? 1));
+      const kpP = Math.min(1, a.kickPulse || 0) * (p.react ?? 1); const sc = (p.scale ?? 1) * (1 + 0.035 * kpP);
       // Movimiento a lo largo del clip (función de prog)
       const mA = p.motionAmount ?? 0.5, ease = prog * prog * (3 - 2 * prog);
       let zoom = p.zoom ?? 1, offX = 0, offY = 0, rx = 0, ry = 0, dz = 0;
@@ -281,7 +281,7 @@ export function buildPhotoLayer(p, env) {
       group.position.set((p.offsetX ?? 0) * hw - cam[0] * par * 0.8, (p.offsetY ?? 0) * hh - cam[1] * par * 0.8, -D + dz);
       group.rotation.set(rx + cam[1] * par * 0.06, ry + cam[0] * par * 0.06, ((p.rotate ?? 0) * Math.PI) / 180);
       u.uCrop.value.set(p.cropX ?? 0, 1 - (p.cropY ?? 0) - (p.cropH ?? 1), p.cropW ?? 1, p.cropH ?? 1);
-      u.uZoom.value = zoom * (1 + 0.025 * (a.beat || 0) * (p.react ?? 1));
+      u.uZoom.value = zoom * (1 + 0.05 * kpP);
       u.uURot.value = 0;
       u.uUVOff.value.set(offX + (fxId === 'parallax' ? -cam[0] * 0.02 * A : 0), offY);
       u.uFx.value = fx; u.uFxAmt.value = A; u.uDepthAmt.value = fxId === 'depth' ? A * Math.min(w, hgt) * 0.35 : 0;

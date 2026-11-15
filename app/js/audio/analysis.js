@@ -94,6 +94,39 @@ export class Analysis {
     }
     return out;
   }
+  /** Golpes de bombo y de batería (bombo+caja) preparados para consultas rápidas (una vez por canción). */
+  _drums() {
+    if (this._dc) return this._dc;
+    const mk = (list) => {
+      const t = Float64Array.from(list.map((h) => h.t));
+      let smax = 1e-6; for (const h of list) smax = Math.max(smax, h.s);
+      const s = Float32Array.from(list.map((h) => 0.55 + 0.45 * Math.min(1, h.s / smax)));
+      const cum = new Float64Array(t.length + 1); for (let i = 0; i < t.length; i++) cum[i + 1] = cum[i] + s[i];
+      return { t, s, cum };
+    };
+    this._dc = { kick: mk(this.drumHits({ mode: 'kicks', minGap: 0.2 })), hit: mk(this.drumHits({ mode: 'hits', minGap: 0.12 })) };
+    return this._dc;
+  }
+  /**
+   * Señales de MOVIMIENTO ligadas a los golpes reales (no a la rejilla): suben en el instante del golpe y caen después.
+   *   kickPulse / hitPulse: 0..1, caída exponencial (0,17 s / 0,13 s)
+   *   kickTravel: desplazamiento acumulado (cada bombo da un «empujón» que se frena en ~0,3 s)
+   *   kickAge0..2: segundos desde los tres últimos bombos
+   */
+  drumsAt(t, out) {
+    const D = this._drums();
+    const last = (set) => { const a = set.t; let lo = 0, hi = a.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (a[m] <= t) { r = m; lo = m + 1; } else hi = m - 1; } return r; };
+    const k = last(D.kick), h = last(D.hit);
+    out.kickPulse = k < 0 ? 0 : D.kick.s[k] * Math.exp(-(t - D.kick.t[k]) / 0.17);
+    out.hitPulse = h < 0 ? 0 : D.hit.s[h] * Math.exp(-(t - D.hit.t[h]) / 0.13);
+    const tau = 0.3;
+    let tr = k < 0 ? 0 : D.kick.cum[k + 1] * tau;
+    for (let j = k; j >= 0 && j > k - 10; j--) tr -= D.kick.s[j] * tau * Math.exp(-(t - D.kick.t[j]) / tau);
+    out.kickTravel = tr;
+    out.kickIndex = k;
+    for (let j = 0; j < 3; j++) out['kickAge' + j] = k - j >= 0 ? t - D.kick.t[k - j] : 99;
+    return out;
+  }
   /** Tiempo (s) de una posición de golpe (inversa de beatPos). */
   beatTime(pos) {
     const b = this.beats, n = b.length;
@@ -149,6 +182,7 @@ export class Analysis {
     out.section = sec ? sec.type : 'verse';
     out.sectionEnergy = sec ? sec.energy : 0.5;
     out.time = t;
+    this.drumsAt(t, out);
     return out;
   }
   /** Solo el espectro (32 bandas) en t: barato, para el historial de los ecualizadores. */
@@ -204,6 +238,7 @@ export class SyntheticAnalysis extends Analysis {
     for (let b = 0; b < SPEC_BANDS; b++) spec[b] = Math.max(0, Math.min(1, (b < 6 ? out.bass : out.mid) * (0.6 + 0.4 * Math.sin(t * 2 + b * 0.7))));
     const sec = this.sectionAt(t);
     out.section = sec?.type || 'verse'; out.sectionEnergy = sec?.energy ?? 0.5; out.time = t;
+    this.drumsAt(t, out);
     return out;
   }
   waveform(columns) { return new Float32Array(columns).fill(0); }

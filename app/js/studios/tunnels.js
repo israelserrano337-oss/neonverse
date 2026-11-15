@@ -24,9 +24,10 @@ export const TUNNEL_PARAMS = [
 ];
 
 // ------------------------------------------------------------ utilidades comunes (puras)
-export function travelOf(t, a, p) {
+export function travelOf(t, a, p, kw = 1) { // kw: peso del empujón del bombo (menor en túneles que llenan la pantalla)
   const dir = p.direction === 'backward' ? -1 : 1;
-  return dir * p.speed * (t * 5 + (a.travelBass || 0) * Math.min(1.5, p.react) * 2.5);
+  const r = Math.min(1.5, p.react), kicks = a.kickTravel !== undefined;
+  return dir * p.speed * (t * (kicks ? 5 - 2.6 * Math.min(1, r) * kw : 5) + (a.travelBass || 0) * r * 2.5 + (a.kickTravel || 0) * r * 15 * kw);
 }
 function bend(z, t, p, L) {
   const k = Math.min(1, -z / L), c = p.camera, kk = k * k;
@@ -42,7 +43,7 @@ function wave(dn, a, react) {
   return react * 0.4 * Math.exp(-x * x * 28) * fadeNear * (0.4 + 0.6 * (a.sectionEnergy ?? 0.6));
 }
 function glowOf(p, a) { return Math.min(1.8, p.glow) * (0.88 + 0.22 * (a.energySoft ?? a.energy ?? 0) * Math.min(1.5, p.react)); }
-function radius(p, a, dn = 0) { const r = Math.min(1.5, p.react); return 3 * p.scale * (1 + r * (0.05 * (a.bassSoft ?? a.bass ?? 0) + 0.05 * (a.beat || 0) * (1 - dn))); }
+function radius(p, a, dn = 0) { const r = Math.min(1.5, p.react); return 3 * p.scale * (1 + r * (0.04 * (a.bassSoft ?? a.bass ?? 0) + 0.15 * Math.min(1, a.kickPulse || 0) * (0.25 + 0.75 * Math.min(1, dn * 2.5)))); }
 
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), S = new THREE.Vector3(), P = new THREE.Vector3();
 function compose(mesh, i, x, y, z, rx, ry, rz, sx, sy, sz) {
@@ -132,11 +133,11 @@ function solidRingTunnel({ geometry, perRing = 8, metal = 0, solid = false, size
     return {
       object: group,
       update(t, a, p) {
-        const L = p.depth, spacing = L / rings, travel = travelOf(t, a, p);
+        const L = p.depth, spacing = L / rings, travelS = travelOf(t, a, p, 0.4);
         group.rotation.z = roll(t, p);
         let i = 0;
         for (let r = 0; r < rings; r++) {
-          const d = mod(r * spacing - travel, L), z = -d, dn = d / L;
+          const d = mod(r * spacing - travelS, L), z = -d, dn = d / L;
           const [ox, oy] = bend(z, t, p, L);
           const R = radius(p, a, dn);
           for (let k = 0; k < per; k++, i++) {
@@ -149,7 +150,7 @@ function solidRingTunnel({ geometry, perRing = 8, metal = 0, solid = false, size
           }
         }
         flush(mesh);
-        common(mat, p, a, L, t, 2.2); // los sólidos se funden antes de pasar junto a la cámara
+        common(mat, p, a, L, t, 2.2 + 0.6 * Math.min(1, a.kickPulse || 0) * Math.min(1, p.speed)); // los sólidos se funden antes de pasar junto a la cámara (más aún en el acelerón)
       },
     };
   };
@@ -214,8 +215,10 @@ function streakTunnel({ count = 6, len = 8, speedMul = 1.6, radial = 'wall', twi
         const R = 3 * p.scale;
         for (let i = 0; i < n; i++) {
           const ang = h(i) * Math.PI * 2 + twist * t * (h(i, 3) - 0.5);
-          const rr = radial === 'wall' ? R * (0.95 + 0.1 * h(i, 2)) : R * (0.5 + 1.1 * Math.sqrt(h(i, 2)));
-          const l = len * (0.5 + h(i, 4)) * (radial === 'wall' ? 1 : (0.4 + 0.6 * p.speed));
+          // en cada bombo las estelas se abren hacia fuera y se estiran («salto a la velocidad de la luz»)
+          const kS = Math.min(1, a.kickPulse || 0) * Math.min(1.5, p.react);
+          const rr = (radial === 'wall' ? R * (0.95 + 0.1 * h(i, 2)) : R * (0.5 + 1.1 * Math.sqrt(h(i, 2)))) * (1 + 0.16 * kS);
+          const l = len * (0.5 + h(i, 4)) * (radial === 'wall' ? 1 : (0.4 + 0.6 * p.speed)) * (1 + 0.7 * kS);
           const d = mod(h(i, 6) * L - travel * (0.8 + 0.4 * h(i, 8)), L), z = -d, dn = d / L;
           const [ox, oy] = bend(z, t, p, L);
           compose(mesh, i, ox + Math.cos(ang) * rr, oy + Math.sin(ang) * rr, z - l / 2, 0, 0, ang, 1, 1, l);
@@ -265,7 +268,8 @@ function particleTunnel(p, env) {
       const u = mat.uniforms;
       common(mat, p, a, p.depth, t);
       u.uTravel.value = travelOf(t, a, p) * 1.4; u.uL.value = p.depth; u.uR.value = 3 * p.scale;
-      u.uSize.value = 0.6 + p.thickness * 6; u.uRoll.value = roll(t, p); u.uCam.value = p.camera; u.uBass.value = (a.bass || 0) * p.react;
+      const kT = Math.min(1, a.kickPulse || 0) * Math.min(1.5, p.react);
+      u.uSize.value = (0.6 + p.thickness * 6) * (1 + 0.5 * kT); u.uRoll.value = roll(t, p); u.uCam.value = p.camera; u.uBass.value = (a.bassSoft ?? a.bass ?? 0) * p.react + 1.6 * kT;
       u.uPix.value = env?.pixelRatio ?? 1;
     },
   };
@@ -352,11 +356,11 @@ function cylinderTunnel(kind, { wire = false } = {}) {
       update(t, a, p) {
         const u = mat.uniforms;
         common(mat, p, a, p.depth, t);
-        u.uTravel.value = travelOf(t, a, p); u.uCam.value = p.camera;
+        u.uTravel.value = travelOf(t, a, p, 0); // llenan la pantalla: sin acelerón (solo el pulso de escala) u.uCam.value = p.camera;
         u.uDensity.value = p.density / 28; u.uFreq.value = p.density / 28;
         u.uBass.value = (a.bassSoft ?? a.bass ?? 0) * p.react; u.uMid.value = (a.midSoft ?? a.mid ?? 0) * p.react; u.uTreble.value = (a.trebleSoft ?? a.treble ?? 0) * p.react;
         u.uBeat.value = (a.beat || 0) * p.react; u.uEnergy.value = a.energy || 0;
-        mesh.scale.set(p.scale, p.scale, 1);
+        const kp = 1 + 0.045 * Math.min(1, a.kickPulse || 0) * Math.min(1, p.react); mesh.scale.set(p.scale * kp, p.scale * kp, 1);
         mesh.rotation.z = roll(t, p);
       },
     };
@@ -388,8 +392,9 @@ function portalTunnel(p, env) {
   return {
     object: group,
     update(t, a, p, env) {
-      ring.update(t, a, p, env);
-      const L = p.depth, spacing = L / n, travel = travelOf(t, a, p);
+      const pc = { ...p, react: Math.min(p.react, 0.55) }; // anillos gruesos y discos: empujón menor (sin destellos)
+      ring.update(t, a, pc, env);
+      const L = p.depth, spacing = L / n, travel = travelOf(t, a, pc);
       for (let i = 0; i < n; i++) {
         const d = mod(i * spacing + spacing / 2 - travel, L), z = -d;
         const [ox, oy] = bend(z, t, p, L);
@@ -399,7 +404,7 @@ function portalTunnel(p, env) {
       }
       flush(discs);
       common(mat, p, a, L, t);
-      mat.uniforms.uNear.value = edgeNear(p) + 2.5;
+      mat.uniforms.uNear.value = edgeNear(p) + 4; // los discos se funden antes: con el acelerón del bombo no llenan la pantalla de golpe
       mat.uniforms.uBass.value = (a.bassSoft ?? a.bass ?? 0) * p.react;
       group.rotation.z = 0;
     },

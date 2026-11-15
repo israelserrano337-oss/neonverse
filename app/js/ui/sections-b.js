@@ -11,7 +11,7 @@ import { PHOTO_CLIP_PARAMS } from '../studios/photos.js';
 import { TRANSITIONS, TRANSITION_PARAMS } from '../studios/transitions.js';
 import { EFFECTS, EFFECT_PARAMS, LIGHTING_PARAMS } from '../studios/effects.js';
 import { PALETTE_PRESETS, PALETTE_PARAMS, allPalettes } from '../studios/palettes.js';
-import { EXPORT_PRESETS, RESOLUTIONS, QUALITIES, outputSize, bitrateFor } from '../export/Exporter.js';
+import { EXPORT_PRESETS, RESOLUTIONS, QUALITIES, DURATIONS, STARTS, outputSize, bitrateFor, exportRange } from '../export/Exporter.js';
 import { clipLabel } from '../timeline/TimelineView.js';
 import { isIOS, shareVideo } from '../export/mobile.js';
 import { removeClip, splitClip, duplicateClip } from '../timeline/model.js';
@@ -207,7 +207,9 @@ export function renderExport(app, body) {
   const set = (k, v, label = 'Ajuste de exportación') => { app.store.commit(label, (pp) => { pp.export[k] = v; }); app.renderSection(); };
   const res = ex.resolution || 1080;
   const size = outputSize(ex.preset, res, ex.custom || p.customSize);
-  const dur = ex.range === 'loop' && app.player.loop.enabled ? app.player.loop.b - app.player.loop.a : app.store.duration;
+  const rangeNow = () => exportRange({ total: app.store.duration, duration: ex.clipSeconds || 0, start: ex.clipStart || 'drop', cursor: app.player.time, analysis: app.analysis, trimStart: p.audio?.trimStart || 0, loop: ex.range === 'loop' && app.player.loop.enabled ? app.player.loop : null });
+  const [r0, r1] = rangeNow();
+  const dur = r1 - r0;
   const bitrate = ex.bitrateMbps ? ex.bitrateMbps * 1e6 : bitrateFor(size.w, size.h, ex.fps, ex.quality);
   const estMB = ((bitrate + (ex.audioBitrate || 0) * 1000) * dur) / 8 / 1e6;
   body.append(group('Formato', true,
@@ -216,6 +218,14 @@ export function renderExport(app, body) {
     ex.preset !== 'custom' ? select({ label: 'Resolución', options: RESOLUTIONS.map((x) => ({ value: x.id, label: x.label })), value: res, onChange: (v) => set('resolution', v) }) : null,
     select({ label: 'Fotogramas por segundo', options: [24, 30, 60].map((x) => ({ value: x, label: `${x} FPS` })), value: ex.fps, onChange: (v) => set('fps', v) }),
     el('p', { class: 'hint' }, `Salida: ${size.w}×${size.h} · ${ex.fps} FPS · ${formatTime(dur, true)} · ${Math.round(dur * ex.fps)} fotogramas · ~${estMB.toFixed(0)} MB`)));
+  // Duración del clip (15 / 30 / 45 / 60 s) y punto de inicio
+  const durSeg = el('div', { class: 'seg' });
+  for (const d of DURATIONS) durSeg.append(el('button', { class: (ex.clipSeconds || 0) === d.value && ex.range !== 'loop' ? 'on' : '', onclick: () => { app.store.commit('Duración del clip', (pp) => { pp.export.clipSeconds = d.value; pp.export.range = 'all'; }); app.renderSection(); } }, d.label));
+  body.append(group('Duración del vídeo', true, durSeg,
+    (ex.clipSeconds || 0) > 0 ? select({ label: 'Empezar', options: STARTS, value: ex.clipStart || 'drop', onChange: (v) => set('clipStart', v, 'Inicio del clip') }) : null,
+    (ex.clipSeconds || 0) > 0 ? toggle({ label: 'Fundido final del audio (0,8 s)', value: ex.fadeOut !== false, onChange: (v) => set('fadeOut', v, 'Fundido final') }) : null,
+    el('p', { class: 'hint' }, `Tramo: ${formatTime(r0, true)} → ${formatTime(r1, true)} (${dur.toFixed(1)} s)` + ((ex.clipSeconds || 0) > app.store.duration ? ' · la canción es más corta que la duración elegida' : '')),
+    btnRow(button('▶ Previsualizar el tramo', () => { app.player.loop = { enabled: true, a: r0, b: r1 }; app.updateTransport(); app.timeline.dirty = true; app.player.play(r0); }))));
   body.append(group('Calidad y codificación', true,
     select({ label: 'Códec', options: [{ value: 'h264', label: 'MP4 H.264 (máxima compatibilidad)' }, { value: 'h265', label: 'MP4 H.265 / HEVC (si es compatible)' }], value: ex.codec, onChange: (v) => set('codec', v) }),
     window.neonDesktop?.isDesktop ? select({ label: 'Codificador', options: [{ value: 'cpu', label: 'Procesador (x264/x265)' }, { value: 'qsv', label: 'Intel QuickSync (gráfica Intel)' }], value: ex.encoder || 'cpu', onChange: (v) => set('encoder', v) }) : null,
@@ -227,18 +237,19 @@ export function renderExport(app, body) {
   nameIn.onchange = () => set('fileName', nameIn.value.trim() || 'neonverse-video', 'Nombre de archivo');
   const folderRow = window.neonDesktop?.isDesktop ? el('div', { class: 'row inline' }, el('label', {}, ex.folder || 'Carpeta: Vídeos'), button('Elegir carpeta', async () => { const r = await window.neonDesktop.chooseFolder(); if (r) set('folder', r, 'Carpeta'); })) : hint('En el navegador el vídeo se descarga a tu carpeta de descargas.');
   body.append(group('Archivo', true, el('div', { class: 'row' }, el('label', {}, 'Nombre del archivo'), nameIn), folderRow,
-    select({ label: 'Rango', options: [{ value: 'all', label: 'Todo el vídeo' }, { value: 'loop', label: 'Solo el fragmento A-B' }], value: ex.range, onChange: (v) => set('range', v) })));
+    select({ label: 'Rango', options: [{ value: 'all', label: 'Según «Duración del vídeo»' }, { value: 'loop', label: 'Solo el fragmento A-B' }], value: ex.range, onChange: (v) => set('range', v) })));
   const prog = el('div', { class: 'progress' }, el('i'));
   const status = el('p', { class: 'hint' }, '');
   const startBtn = button('🎬 EXPORTAR MP4', async () => {
     if (app.exporter.running) return;
     if (size.w * size.h >= 3840 * 2160 * 0.9) { const ok = await modal('Exportación 4K', 'En tu equipo el 4K puede tardar bastante (cada fotograma se dibuja completo). ¿Continuar?', [{ label: 'Cancelar', value: 0 }, { label: 'Continuar', value: 1, primary: true }]); if (!ok) return; }
     startBtn.disabled = true; cancelBtn.disabled = false;
-    const range = ex.range === 'loop' && app.player.loop.enabled ? [app.player.loop.a, app.player.loop.b] : [0, app.store.duration];
+    const range = rangeNow();
+    const fadeOut = (ex.clipSeconds || 0) > 0 && ex.fadeOut !== false && range[1] < app.store.duration - 0.05 ? 0.8 : 0;
     try {
       const r = await app.exporter.run({
         width: size.w, height: size.h, fps: ex.fps, codec: ex.codec, encoder: ex.encoder || 'cpu', quality: ex.quality, bitrateMbps: ex.bitrateMbps || 0, audioBitrate: ex.audioBitrate ?? 192,
-        fileName: ex.fileName || p.name, folder: ex.folder, range,
+        fileName: (ex.fileName || p.name) + ((ex.clipSeconds || 0) > 0 && range[1] - range[0] < app.store.duration - 0.05 ? `-${ex.clipSeconds}s` : ''), folder: ex.folder, range, fadeOut,
         onProgress: (s) => { prog.firstChild.style.width = `${(s.frame / s.total) * 100}%`; status.textContent = `Fotograma ${s.frame}/${s.total} · ${s.fps.toFixed(1)} fps · quedan ${formatTime(s.eta)}`; },
       });
       status.textContent = `✓ Terminado en ${formatTime(r.seconds)}: ${r.path} (${(r.size / 1e6).toFixed(1)} MB)` + (r.noAudioReason ? ` · SIN AUDIO: ${r.noAudioReason}` : '') + (r.interrupted ? ' · Saliste de la app durante la exportación: revisa el vídeo.' : '');

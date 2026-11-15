@@ -1,5 +1,11 @@
 # Cambios
 
+## 2.5.0 — 15-11-2026
+- **Exportador: duración del vídeo 15 / 30 / 45 / 60 s** (o completo), empezando en el primer drop (un compás antes), en el principio o en el cursor; el tramo se encaja en el compás y se adelanta si no cabe. Fundido final del audio de 0,8 s (escritorio y navegador), nombre de archivo con la duración, botón «Previsualizar el tramo».
+- **Sincronía con la batería en todas las visuales:** nuevas señales del análisis ligadas a los golpes reales (pulso de bombo, pulso de batería y «empujón» acumulado). Túneles que avanzan a empujones y laten en cada bombo, láseres que se abren y estiran, ecualizadores (núcleo, barras, órbitas y ondas de choque en cada bombo real), mallas que se levantan y laten, partículas que se expanden, chispas en cada bombo, fotos con zoom de impacto y leve empuje de cámara. Antes reaccionaban a la rejilla de tempo con una campana que empezaba antes del golpe.
+- Medido (`qa/sync.py`): el movimiento llega 0-2 fotogramas tras el bombo en las 23 visuales medidas; en el vídeo exportado, el movimiento en los bombos pasa de 1,24 a 1,6 veces el del resto.
+- Seguridad: brillo compensado al crecer las barras, sin acelerón en túneles que llenan la pantalla, transiciones que reparten el cambio de brillo en toda su duración; barrido 112/112 dentro de los límites.
+
 ## 2.4.0 — 15-11-2026
 - **BEAT-SYNC PHOTO ENGINE PRO** (`app/js/beatsync/BeatSync.js`, módulo independiente): cambio de foto en cada bombo real (AUTO KICK, con opción de incluir la caja), o cada 1/2, 1 o 2 pulsos; el modo se cambia mientras suena y queda grabado en su instante. Botones NEXT / PREVIOUS (teclas N / B), cambio automático sí/no, sensibilidad, velocidad de transición, orden secuencial o aleatorio, 5 transiciones (corte, fundido cruzado, zoom dinámico, flash, RGB glitch).
 - Reutiliza el análisis y el reloj de audio existentes (un solo AudioContext, sin analizadores nuevos); anti-rebote de 1/6 s; solo dos capas de foto reutilizadas (sin crear geometría en cada cambio); 2 µs de cálculo por fotograma.

@@ -169,6 +169,9 @@ class App {
       v.bassSoft = Math.min(1.5, base.bassSoft * m.bass * g); v.midSoft = Math.min(1.5, base.midSoft * m.mid * g);
       v.trebleSoft = Math.min(1.5, base.trebleSoft * m.treble * g); v.energySoft = Math.min(1.5, base.energySoft * g);
       v.travelBass = base.travelBass * (m.enabled ? m.bass : 0);
+      v.kickPulse = Math.min(1.5, (base.kickPulse || 0) * m.beat * g);
+      v.hitPulse = Math.min(1.5, (base.hitPulse || 0) * m.beat * g);
+      v.kickTravel = (base.kickTravel || 0) * (m.enabled ? m.beat : 0) * (sync.global ?? 1);
       v.gain = g;
       return v;
     };
@@ -687,7 +690,9 @@ async function selftest(app) {
     const out = qPath.replace(/\\/g, '/');
     const folder = out.includes('/') ? out.slice(0, out.lastIndexOf('/')) : undefined;
     const name = out.slice(out.lastIndexOf('/') + 1).replace(/\.mp4$/i, '');
-    const r = await app.exporter.run({ width: parseInt(qw, 10) || 540, height: parseInt(qh, 10) || 960, fps: 30, codec: 'h264', encoder: 'cpu', quality: 'normal', audioBitrate: 192, fileName: name, folder, range: [Number.isFinite(parseFloat(qa)) ? +qa : 10, Number.isFinite(parseFloat(qb)) ? +qb : 14] });
+    let clipRange = null, clipFade = 0;
+    if (/^clip\d+$/.test(qa || '')) { const { exportRange } = await import('./export/Exporter.js'); clipRange = exportRange({ total: app.store.duration, duration: +qa.slice(4), start: 'drop', analysis: app.analysis, trimStart: app.store.project.audio?.trimStart || 0 }); clipFade = 0.8; console.log('[selftest] tramo', JSON.stringify(clipRange)); }
+    const r = await app.exporter.run({ fadeOut: clipFade, width: parseInt(qw, 10) || 540, height: parseInt(qh, 10) || 960, fps: 30, codec: 'h264', encoder: 'cpu', quality: 'normal', audioBitrate: 192, fileName: name, folder, range: clipRange || [Number.isFinite(parseFloat(qa)) ? +qa : 10, Number.isFinite(parseFloat(qb)) ? +qb : 14] });
     done({ ok: true, caps, ...r });
   } catch (e) { done({ ok: false, error: String(e.stack || e) }); }
 }

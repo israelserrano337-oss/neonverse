@@ -106,8 +106,9 @@ class Slot {
     for (const m of set.meshes) camAmt = Math.max(camAmt, 0.3 * (effectiveParams('meshes', m, project).amplitude || 0));
     const sway = [Math.sin(t * 0.37) * camAmt * 0.5, Math.cos(t * 0.29) * camAmt * 0.32];
     const cam = this.camera;
-    cam.fov = clamp(fov, 20, 130); cam.aspect = aspect; cam.updateProjectionMatrix();
-    cam.position.set(sway[0], sway[1], 0);
+    const ka = audioFor('tunnels'), kp = Math.min(1, ka.kickPulse || 0) * Math.min(1, 0.45 + camAmt);
+    cam.fov = clamp(fov * (1 - 0.02 * kp), 20, 130); cam.aspect = aspect; cam.updateProjectionMatrix();
+    cam.position.set(sway[0], sway[1], -0.3 * kp);
     cam.lookAt(sway[0] * 0.2, sway[1] * 0.2, -30);
     const env = { quality, aspect, fov: cam.fov, camSway: sway, renderHeight, pixelRatio: renderHeight / 960, photoTexture: ctx.photoTexture, spectrumAt: this.engine.spectrumAt };
     const order = { photos: 0, tunnels: 0, meshes: 1, equalizers: 1.5, particles: 2 };

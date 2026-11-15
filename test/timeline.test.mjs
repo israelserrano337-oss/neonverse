@@ -88,3 +88,22 @@ test('Pase «en cada golpe de batería»: cada cambio cae en un golpe, con efect
   assert.ok(clips.slice(1).every((c) => c.params.hitFx !== 'none'));
   assert.ok(clips.slice(1).every((c) => c.params.fadeIn <= 0.1));
 });
+
+import { exportRange } from '../app/js/export/Exporter.js';
+test('Exportador: duraciones de 15/30/45/60 s, inicio en el drop o el cursor, encajadas en la canción', () => {
+  const { mono, sr } = synthTrack({ bpm: 128, seconds: 90, breakAt: 30, breakLen: 15 });
+  const a = new Analysis(analyze(mono, sr));
+  for (const d of [15, 30, 45, 60]) {
+    for (const start of ['drop', 'start', 'cursor']) {
+      const [t0, t1] = exportRange({ total: 90, duration: d, start, cursor: 50, analysis: a });
+      assert.ok(Math.abs(t1 - t0 - d) < 1e-3, `${d} s desde ${start}: ${t0}-${t1}`);
+      assert.ok(t0 >= 0 && t1 <= 90 + 1e-6);
+      if (start === 'start') assert.equal(t0, 0);
+      if (start !== 'start' && t0 > 0 && t0 < 90 - d - 1e-6) { const bp = a.beatPos(t0); assert.ok(Math.abs(bp - Math.round(bp)) < 0.03, `inicio fuera de compás ${t0}`); }
+    }
+  }
+  assert.deepEqual(exportRange({ total: 20, duration: 30, start: 'drop', analysis: a }), [0, 20]); // canción más corta
+  assert.deepEqual(exportRange({ total: 90, duration: 0 }), [0, 90]);
+  const [c0] = exportRange({ total: 90, duration: 60, start: 'cursor', cursor: 70, analysis: a });
+  assert.ok(Math.abs(c0 - 30) < 1e-6, `se adelanta para caber: ${c0}`);
+});

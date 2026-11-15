@@ -142,8 +142,9 @@ function setMeshUniforms(mats, p, a, t) {
     setCommon(m, p, { uGlow: p.glow, uTime: t, uFar: p.depth * 3 + 25 });
     u.uAmp.value = p.amplitude; u.uFreq.value = p.frequency; u.uSpeed.value = p.speed; u.uOnd.value = p.ondulation; u.uInt.value = p.intensity;
     u.uBassR.value = p.bassReact; u.uMidR.value = p.midReact; u.uTrebR.value = p.trebleReact;
-    u.uBass.value = a.bassSoft ?? a.bass ?? 0; u.uMid.value = a.midSoft ?? a.mid ?? 0; u.uTreble.value = a.trebleSoft ?? a.treble ?? 0; u.uBeat.value = a.beat || 0;
-    u.uTravel.value = t * p.speed * 2 + (a.travelBass || 0) * p.bassReact * 1.5;
+    const kp = Math.min(1, a.kickPulse || 0);
+    u.uBass.value = Math.min(1.6, (a.bassSoft ?? a.bass ?? 0) + 0.9 * kp); u.uMid.value = a.midSoft ?? a.mid ?? 0; u.uTreble.value = a.trebleSoft ?? a.treble ?? 0; u.uBeat.value = kp;
+    u.uTravel.value = t * p.speed * 2 + (a.travelBass || 0) * p.bassReact * 1.5 + (a.kickTravel || 0) * p.bassReact * 4;
   }
 }
 
@@ -170,6 +171,8 @@ function placed(make, defaultPlacement) {
           o.children[0].rotation.z = p.rotation * t * (cfg === 'ceiling' ? -1 : 1) * (cfg === 'floor' || cfg === 'ceiling' ? 0.15 : 1);
           if (cfg === 'center' || cfg === 'back') o.children[0].rotation.y = p.rotation * t * 0.6;
         }
+        const kpS = 1 + 0.06 * Math.min(1, a.kickPulse || 0) * Math.min(1.5, p.bassReact ?? 1); // las mallas «laten» con el bombo
+        for (const o of group.children) o.scale.multiplyScalar(kpS);
         for (const r of parts) r.update(t, a, p, env);
       },
     };

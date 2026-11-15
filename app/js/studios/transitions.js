@@ -42,7 +42,7 @@ void main(){
   vec3 col;
   if (is(0.0)) col = mix(A(uv), B(uv), p);
   else if (is(1.0)) { // flash suave: campana de brillo limitada (segura)
-    col = mix(A(uv), B(uv), smoothstep(0.2, 0.8, p)) + uColor * bellp(p) * (0.05 + 0.08 * I);
+    col = mix(A(uv), B(uv), smoothstep(0.0, 1.0, p)) + uColor * bellp(p) * (0.05 + 0.08 * I); // cambio repartido en toda la duración
   }
   else if (is(2.0)) { // zoom: A se acerca, B llega desde lejos
     float za = 1.0 + 2.5 * I * p, zb = 1.0 + 2.0 * I * (1.0 - p);
@@ -56,7 +56,7 @@ void main(){
     vec2 r = vec2(q.x / max(abs(s), 0.02), q.y / persp) + 0.5;
     bool inside = r.x >= 0.0 && r.x <= 1.0 && r.y >= 0.0 && r.y <= 1.0;
     vec3 face = side < 0.5 ? A(r) : B(vec2(1.0 - r.x, r.y));
-    vec3 under = mix(A(uv), B(uv), smoothstep(0.2, 0.8, p)) * 0.7; // sin fundido a negro
+    vec3 under = mix(A(uv), B(uv), p) * 0.7; // sin fundido a negro; mezcla lineal (cambio de brillo gradual)
     col = inside ? mix(under, face, abs(s)) : under; // la cara se funde con el fondo al ponerse de canto
   }
   else if (is(4.0)) { // barrido con borde luminoso
@@ -74,7 +74,7 @@ void main(){
   else if (is(6.0)) { // RGB: canales separados que se cruzan
     float g = bellp(p) * I * 0.08;
     vec3 a = vec3(A(uv + dir * g).r, A(uv).g, A(uv - dir * g).b), b = vec3(B(uv + dir * g).r, B(uv).g, B(uv - dir * g).b);
-    col = vec3(mix(a.r, b.r, smoothstep(0.2, 0.6, p)), mix(a.g, b.g, smoothstep(0.3, 0.7, p)), mix(a.b, b.b, smoothstep(0.4, 0.8, p)));
+    col = vec3(mix(a.r, b.r, smoothstep(0.0, 0.8, p)), mix(a.g, b.g, smoothstep(0.1, 0.9, p)), mix(a.b, b.b, smoothstep(0.2, 1.0, p)));
   }
   else if (is(7.0)) { // explosión de partículas: celdas que salen disparadas
     vec2 g = uv * vec2(48.0 * uAspect, 48.0); vec2 id = floor(g);
@@ -85,10 +85,10 @@ void main(){
     col = mix(a, B(uv), smoothstep(0.45, 1.0, p));
   }
   else if (is(8.0)) { // portal: círculo que se abre con anillo de energía
-    float r = length(c); float R = p * (0.9 + 0.3 * I);
-    float m = smoothstep(R + 0.01, R - 0.01, r);
+    float r = length(c); float R = sqrt(p) * (0.9 + 0.3 * I); // área ∝ p: el brillo cambia a ritmo constante
+    float m = smoothstep(R + 0.06, R - 0.06, r); // borde suave
     vec2 sw = uv + vec2(sin(atan(c.y, c.x) * 6.0 + uTime * 4.0), cos(r * 30.0 - uTime * 5.0)) * 0.01 * I * (1.0 - p);
-    col = mix(A(sw), B(uv), m) + pal(r * 2.0 + uTime * 0.2) * exp(-pow((r - R) * 40.0, 2.0)) * 0.8 * I;
+    col = mix(A(sw), B(uv), m) + pal(r * 2.0 + uTime * 0.2) * exp(-pow((r - R) * 40.0, 2.0)) * 0.45 * I;
   }
   else if (is(9.0)) { // túnel: desenfoque radial hacia el centro y salida
     vec3 acc = vec3(0.0); float s = bellp(p) * 0.25 * I;
@@ -123,13 +123,13 @@ void main(){
     vec2 res = vec2(uAspect, 1.0) * 540.0 / px; vec2 q = (floor(uv * res) + 0.5) / res;
     float slice = step(0.7, hash21(vec2(floor(uv.y * 40.0), floor(uTime * 12.0)))) * bellp(p) * I;
     q.x += (hash21(vec2(floor(uv.y * 40.0), 1.0)) - 0.5) * 0.1 * slice;
-    col = mix(A(q), B(q), smoothstep(0.2, 0.8, p));
+    col = mix(A(q), B(q), smoothstep(0.0, 1.0, p));
   }
   else if (is(15.0)) { // geométrica: rejilla hexagonal que se revela
     vec2 g = c * 12.0; vec2 r = vec2(1.0, 1.732); vec2 h = r * 0.5;
     vec2 a1 = mod(g, r) - h, b1 = mod(g - h, r) - h; vec2 gv = dot(a1, a1) < dot(b1, b1) ? a1 : b1;
-    vec2 id = g - gv; float delay = hash21(floor(id * 10.0)) * 0.4 + length(id) * 0.02;
-    float k = smoothstep(delay, delay + 0.35, p);
+    vec2 id = g - gv; float delay = hash21(floor(id * 10.0)) * 0.5 + length(id) * 0.02;
+    float k = smoothstep(delay, delay + 0.5, p);
     float hexd = max(abs(gv.x) * 0.866 + abs(gv.y) * 0.5, abs(gv.y));
     float m = step(hexd, k * 0.6);
     col = mix(A(uv), B(uv), m) + uColor * smoothstep(0.02, 0.0, abs(hexd - k * 0.6)) * (1.0 - k) * 1.5 * I;
